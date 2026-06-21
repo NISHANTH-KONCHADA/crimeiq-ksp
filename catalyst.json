@@ -1,0 +1,21 @@
+{
+  "functions": {
+    "targets": [
+      "seed-function",
+      "chat-function",
+      "role-function"
+    ],
+    "ignore": [],
+    "source": "functions"
+  },
+  "slate": [
+    {
+      "name": "react-vite",
+      "source": "client"
+    }
+  ],
+  "client": {
+    "source": "crimeiq-client",
+    "plugin": "zcatalyst-cli-plugin-react"
+  }
+}
