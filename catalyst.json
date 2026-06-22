@@ -3,7 +3,8 @@
     "targets": [
       "seed-function",
       "chat-function",
-      "role-function"
+      "role-function",
+      "threat-cron-function"
     ],
     "ignore": [],
     "source": "functions"

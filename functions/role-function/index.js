@@ -4,6 +4,8 @@ module.exports = async (context, basicIO) => {
   const app = catalyst.initialize(context);
   const zcql = app.zcql();
   const userRolesTable = app.datastore().table('UserRoles');
+  const cache = app.cache();
+  const segment = cache.segment();
 
   // Determine intent: if 'role' param is present, it's a POST (save role).
   // basicIO.getHttpMethod() does NOT exist in zcatalyst-sdk-node v3.x —
@@ -27,6 +29,13 @@ module.exports = async (context, basicIO) => {
         full_name: fullName || '',
       });
 
+      // Cache the role immediately to save future DB hits
+      try {
+        await segment.put(String(userId), JSON.stringify({ role, full_name: fullName || '' }), 1);
+      } catch (cacheErr) {
+        // Ignore cache failure
+      }
+
       basicIO.write(JSON.stringify({ success: true, role }));
     } else {
       // ── GET-equivalent: Lookup role ───────────────────────────
@@ -36,13 +45,32 @@ module.exports = async (context, basicIO) => {
         return;
       }
 
+      // Check Cache first
+      try {
+        const cached = await segment.get(String(userId));
+        if (cached) {
+          basicIO.write(cached);
+          context.close();
+          return;
+        }
+      } catch (e) {
+        // Cache miss or error
+      }
+
       const query = `SELECT * FROM UserRoles WHERE catalyst_user_id = '${String(userId)}' LIMIT 1`;
       const rows = await zcql.executeZCQLQuery(query);
 
       if (rows.length > 0) {
         const flat = {};
         Object.keys(rows[0]).forEach((table) => Object.assign(flat, rows[0][table]));
-        basicIO.write(JSON.stringify({ role: flat.role, full_name: flat.full_name }));
+        const result = { role: flat.role, full_name: flat.full_name };
+        
+        // Save to cache for 1 hour
+        try {
+          await segment.put(String(userId), JSON.stringify(result), 1);
+        } catch (e) {}
+        
+        basicIO.write(JSON.stringify(result));
       } else {
         basicIO.write(JSON.stringify({ role: null }));
       }

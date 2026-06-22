@@ -1,0 +1,10 @@
+{
+        "deployment": {
+                "name": "threat-cron-function",
+                "stack": "node24",
+                "type": "cron"
+        },
+        "execution": {
+                "main": "index.js"
+        }
+}

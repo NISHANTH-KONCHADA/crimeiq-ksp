@@ -1,0 +1,14 @@
+{
+  "name": "threat-cron-function",
+  "version": "1.0.0",
+  "description": "Nightly Threat Analysis Job",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "KSP",
+  "license": "ISC",
+  "dependencies": {
+    "zcatalyst-sdk-node": "^3.0.0"
+  }
+}
