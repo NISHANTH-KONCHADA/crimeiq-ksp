@@ -2,8 +2,7 @@
         "deployment": {
                 "name": "chat-function",
                 "stack": "node24",
-                "type": "basicio",
-                "env_variables": {}
+                "type": "basicio"
         },
         "execution": {
                 "main": "index.js"
