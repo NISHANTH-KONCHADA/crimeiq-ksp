@@ -8,7 +8,7 @@ A conversational AI platform for the Karnataka State Police (KSP) CCTNS crime da
 
 ## 🚀 Live Demo
 
-**Deployed URL:** `https://react-vite-mjuarank.onslate.in`
+**Deployed URL:** https://crimeiq.onslate.in
 
 ---
 

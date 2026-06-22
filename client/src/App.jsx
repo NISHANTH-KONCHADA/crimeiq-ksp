@@ -79,16 +79,16 @@ export default function App() {
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           transcript += event.results[i][0].transcript;
         }
-        
+
         const text = transcript.trim();
         if (!text) return;
-        
+
         const wordCount = text.split(/\s+/).length;
 
         if (voiceStateRef.current === 'SPEAKING') {
           // Barge-in Interruption! Only interrupt if 2+ words (avoid noise)
           if (wordCount < 2) return;
-          
+
           window.speechSynthesis.cancel();
           setVoiceState('THINKING');
           setInput(text);
@@ -109,7 +109,7 @@ export default function App() {
       recognition.onend = () => {
         if (voiceOverlayActiveRef.current && (voiceStateRef.current === 'LISTENING' || voiceStateRef.current === 'SPEAKING')) {
           // Restart if it stopped listening but we are still in listening or speaking state
-          try { recognition.start(); } catch (e) {}
+          try { recognition.start(); } catch (e) { }
         } else if (!voiceOverlayActiveRef.current) {
           setIsListening(false);
         }
@@ -138,7 +138,7 @@ export default function App() {
     if (!recognitionRef.current) return;
     setVoiceState('LISTENING');
     recognitionRef.current.lang = inputLang === 'KN' ? 'kn-IN' : 'en-IN';
-    try { recognitionRef.current.start(); } catch (e) {}
+    try { recognitionRef.current.start(); } catch (e) { }
   };
 
   const toggleVoiceOverlay = () => {
@@ -149,18 +149,18 @@ export default function App() {
       setVoiceOverlayActive(false);
       setVoiceState('IDLE');
       window.speechSynthesis.cancel();
-      try { recognitionRef.current.stop(); } catch (e) {}
+      try { recognitionRef.current.stop(); } catch (e) { }
     }
   };
 
   const speakText = (text) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    
+
     // Strip markdown formatting for cleaner audio
     const cleanText = text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/^[-*+]\s/gm, '').replace(/#{1,6}\s/g, '');
     const isKannada = /[\u0C80-\u0CFF]/.test(cleanText);
-    
+
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = isKannada ? 'kn-IN' : 'en-IN';
     utterance.rate = 1.05;
@@ -169,21 +169,21 @@ export default function App() {
 
     const voices = availableVoicesRef.current;
     const matchingLang = voices.filter(v => v.lang.startsWith(isKannada ? 'kn' : 'en'));
-    
+
     let preferredVoice = null;
     if (!isKannada) {
       preferredVoice = matchingLang.find(v => v.name === 'Google UK English Female' || v.name === 'Google US English') ||
-                       matchingLang.find(v => v.name.includes('Google')) ||
-                       matchingLang.find(v => v.name.includes('Natural') || v.name.includes('Neural')) ||
-                       matchingLang.find(v => v.lang === 'en-IN' || v.lang === 'en-GB');
+        matchingLang.find(v => v.name.includes('Google')) ||
+        matchingLang.find(v => v.name.includes('Natural') || v.name.includes('Neural')) ||
+        matchingLang.find(v => v.lang === 'en-IN' || v.lang === 'en-GB');
     }
-    
+
     if (preferredVoice) {
       utterance.voice = preferredVoice;
     } else if (matchingLang.length > 0) {
       utterance.voice = matchingLang[0];
     }
-    
+
     utterance.onend = () => {
       if (voiceOverlayActiveRef.current && voiceStateRef.current === 'SPEAKING') {
         // Add a short 400ms ambient pause before resuming listening
@@ -194,10 +194,10 @@ export default function App() {
     };
 
     window.speechSynthesis.speak(utterance);
-    
+
     // Keep mic alive during speaking for Barge-In
     if (voiceOverlayActiveRef.current) {
-      try { recognitionRef.current.start(); } catch (e) {}
+      try { recognitionRef.current.start(); } catch (e) { }
     }
   };
 
@@ -383,10 +383,10 @@ export default function App() {
 
   return (
     <div className="h-screen w-screen flex bg-white text-slate-800 overflow-hidden font-sans">
-      <VoiceOverlay 
-        isActive={voiceOverlayActive} 
-        status={voiceState} 
-        onClose={toggleVoiceOverlay} 
+      <VoiceOverlay
+        isActive={voiceOverlayActive}
+        status={voiceState}
+        onClose={toggleVoiceOverlay}
         transcript={input}
         inputLang={inputLang}
         onToggleLang={() => setInputLang(prev => prev === 'EN' ? 'KN' : 'EN')}
@@ -411,11 +411,10 @@ export default function App() {
             </div>
             <button
               onClick={toggleVoiceOverlay}
-              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-                voiceOverlayActive 
-                  ? 'border-blue-300 bg-blue-50 text-blue-700' 
+              className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${voiceOverlayActive
+                  ? 'border-blue-300 bg-blue-50 text-blue-700'
                   : 'border-slate-300 text-slate-600 hover:border-slate-900 hover:text-slate-900'
-              }`}
+                }`}
               title="Start Immersive Voice Mode"
             >
               <Mic size={13} />
@@ -446,11 +445,10 @@ export default function App() {
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                  msg.role === 'user'
+                className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.role === 'user'
                     ? 'bg-slate-900 text-white rounded-br-md whitespace-pre-wrap'
                     : 'bg-white text-slate-700 rounded-bl-md border border-slate-200 shadow-sm'
-                }`}
+                  }`}
               >
                 {msg.role === 'user' ? (
                   msg.text
@@ -536,9 +534,8 @@ export default function App() {
             </button>
             <button
               onClick={toggleVoice}
-              className={`p-2 rounded-lg transition-colors ${
-                isListening ? 'bg-red-500 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
-              }`}
+              className={`p-2 rounded-lg transition-colors ${isListening ? 'bg-red-500 text-white' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-200'
+                }`}
               title="Voice input"
             >
               {isListening ? <MicOff size={17} /> : <Mic size={17} />}
@@ -564,13 +561,13 @@ export default function App() {
       {/* RIGHT: Results Panel */}
       <div className="hidden md:flex flex-col w-[45%] bg-white">
         <div className="flex items-center gap-6 px-6 py-4 border-b border-slate-200">
-          <button 
+          <button
             onClick={() => setActiveTab('Data')}
             className={`font-semibold text-sm ${activeTab === 'Data' ? 'text-blue-600 border-b-2 border-blue-600 pb-4 -mb-4' : 'text-slate-500 hover:text-slate-700'}`}
           >
             Data View
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('Audit')}
             className={`font-semibold text-sm ${activeTab === 'Audit' ? 'text-blue-600 border-b-2 border-blue-600 pb-4 -mb-4' : 'text-slate-500 hover:text-slate-700'}`}
           >
