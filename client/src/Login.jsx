@@ -257,7 +257,7 @@ export default function Login({ onAuthenticated }) {
               <p className="text-xs text-slate-500">Sign in via the Zoho Catalyst gateway to continue.</p>
             </div>
             {/* The Catalyst Widget embeds here */}
-            <div id="loginDivElementId" ref={loginDivRef} className="w-full min-h-[450px] bg-white [&>iframe]:w-full [&>iframe]:min-h-[450px] [&>iframe]:border-none"></div>
+            <div id="loginDivElementId" ref={loginDivRef} className="w-full min-h-[520px] bg-white [&>iframe]:w-full [&>iframe]:min-h-[520px] [&>iframe]:border-none"></div>
           </div>
         </div>
       )}
