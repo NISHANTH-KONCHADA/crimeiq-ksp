@@ -97,7 +97,10 @@ function buildQueries(question, historyText = '') {
   if (specificFirNumber) {
     firWhere.push(`fir_number = '${specificFirNumber}'`);
   } else {
-    if (foundDistrict) firWhere.push(`UPPER(district) LIKE UPPER('%${foundDistrict}%')`);
+    if (foundDistrict) {
+      const capitalized = foundDistrict.charAt(0).toUpperCase() + foundDistrict.slice(1);
+      firWhere.push(`district = '${capitalized}'`);
+    }
     if (foundCrime) firWhere.push(`crime_type = '${foundCrime[1]}'`);
     if (foundYear) firWhere.push(`date_of_incident LIKE '${foundYear}%'`);
     if (isStatusQuery && q.includes('open')) firWhere.push(`status = 'Open'`);
@@ -172,6 +175,7 @@ module.exports = async (context, basicIO) => {
               return flat;
             });
             if (results.FIR.length > 0) resolvedFirId = results.FIR[0].ROWID;
+            audit_trail.push({ type: 'FIR (Exact Match)', query });
           } catch (firErr) {
             results.FIR = [];
           }
@@ -233,7 +237,9 @@ module.exports = async (context, basicIO) => {
 
     if (results.FIR && results.FIR.length === 0) {
       try {
-        const fallbackRows = await zcql.executeZCQLQuery('SELECT * FROM FIR LIMIT 10');
+        const fallbackQuery = 'SELECT * FROM FIR LIMIT 10';
+        const fallbackRows = await zcql.executeZCQLQuery(fallbackQuery);
+        audit_trail.push({ type: 'FIR (Fallback Sample)', query: fallbackQuery });
         results.FIR = fallbackRows.map(r => {
           const flat = {};
           Object.keys(r).forEach(table => Object.assign(flat, r[table]));
