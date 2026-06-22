@@ -270,7 +270,12 @@ export default function Login({ onAuthenticated }) {
                 <Lock size={20} />
               </div>
               <h3 className="font-bold text-lg text-slate-900">Secure Portal Access</h3>
-              <p className="text-xs text-slate-500">Sign in via the Zoho Catalyst gateway to continue.</p>
+              <p className="text-xs text-slate-500 mb-2">Sign in via the Zoho Catalyst gateway to continue.</p>
+              <div className="bg-blue-50 border border-blue-100 rounded px-3 py-2 text-xs text-left w-full max-w-[280px]">
+                <div className="font-bold text-blue-700 mb-1 text-[10px] uppercase tracking-wider">Datathon Demo Credentials</div>
+                <div className="flex justify-between items-center"><span className="text-slate-500">Email:</span> <span className="font-mono text-slate-900 font-medium">konchadanishanth2643@gmail.com</span></div>
+                <div className="flex justify-between items-center mt-0.5"><span className="text-slate-500">Pass:</span> <span className="font-mono text-slate-900 font-medium">Crimeiq@1</span></div>
+              </div>
             </div>
             {/* The Catalyst Widget embeds here */}
             <div id="loginDivElementId" ref={loginDivRef} className="w-full min-h-[520px] bg-white [&>iframe]:w-full [&>iframe]:min-h-[520px] [&>iframe]:border-none"></div>
