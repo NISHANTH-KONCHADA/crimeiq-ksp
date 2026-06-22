@@ -43,8 +43,9 @@ CrimeIQ strictly adheres to the mandatory deployment guidelines, heavily leverag
 | :--- | :--- | :--- |
 | **Rule #1** (Serverless backend logic) | **Catalyst Serverless** | Basic I/O functions power the `chat-function`, `role-function`, and `seed-function`. |
 | **Rule #4** (Frontend/SPA Hosting) | **Catalyst Slate** | The entire React/Vite web client is hosted via Slate. |
-| **Rule #6** (Relational database) | **Catalyst Data Store** | ZCQL queries are executed against structured tables (`FIR`, `Accused`, etc.). |
+| **Rule #6 & #10** (Relational DB & Search) | **Catalyst Data Store** | ZCQL query engine powers complex relational JOINs, text searches, and data retrieval across all crime tables. |
 | **Rule #17** (User Auth & Login) | **Catalyst Authentication** | Secure Officer Login is handled natively via Embedded Auth. |
+| **Rule #18** (API routing & security) | **Catalyst API Gateway** | Basic I/O functions are securely exposed and routed via Catalyst's managed API gateway endpoints. |
 
 > [!NOTE]
 > **Technical Justification for LLM Selection (Exception to Rule #11)**
