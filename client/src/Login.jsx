@@ -235,6 +235,19 @@ export default function Login({ onAuthenticated }) {
           <Lock size={18} />
           Authenticate Secure Session
         </button>
+
+        {/* Demo Credentials Box */}
+        <div className="mt-8 bg-white/60 backdrop-blur-sm border border-blue-200 p-4 rounded-xl shadow-sm text-left inline-block">
+          <div className="text-xs font-bold uppercase tracking-wider text-blue-600 mb-2 flex items-center gap-1.5">
+            <User size={14} /> Datathon Demo Credentials
+          </div>
+          <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+            <span className="text-slate-500 font-medium">Email:</span>
+            <span className="text-slate-900 font-mono font-medium">konchadanishanth2643@gmail.com</span>
+            <span className="text-slate-500 font-medium">Password:</span>
+            <span className="text-slate-900 font-mono font-medium">Crimeiq@1</span>
+          </div>
+        </div>
         
         <div className="mt-12 flex items-center gap-8 text-sm font-medium text-slate-400">
           <div className="flex items-center gap-2"><Shield size={16}/> End-to-End Encryption</div>
