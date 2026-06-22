@@ -36,6 +36,20 @@ CrimeIQ uses a fully serverless, zero-maintenance architecture deployed entirely
 | **Authentication** | Catalyst Auth & User Profiles | Secure embedded login with email/password and social OAuth. |
 | **Visualization** | D3.js | Interactive rendering of complex criminal hierarchies. |
 
+### 🏆 Datathon Catalyst Services Compliance
+CrimeIQ strictly adheres to the mandatory deployment guidelines, heavily leveraging the native Zoho Catalyst ecosystem.
+
+| Datathon Rule | Required Service | Implementation in CrimeIQ |
+| :--- | :--- | :--- |
+| **Rule #1** (Serverless backend logic) | **Catalyst Serverless** | Basic I/O functions power the `chat-function`, `role-function`, and `seed-function`. |
+| **Rule #4** (Frontend/SPA Hosting) | **Catalyst Slate** | The entire React/Vite web client is hosted via Slate. |
+| **Rule #6** (Relational database) | **Catalyst Data Store** | ZCQL queries are executed against structured tables (`FIR`, `Accused`, etc.). |
+| **Rule #17** (User Auth & Login) | **Catalyst Authentication** | Secure Officer Login is handled natively via Embedded Auth. |
+
+> [!NOTE]
+> **Technical Justification for LLM Selection (Exception to Rule #11)**
+> CrimeIQ utilizes the `llama-3.3-70b-versatile` model via the **Groq API** instead of Catalyst QuickML. This architecture deviation was strictly necessary to support CrimeIQ's immersive **Voice Mode**, which demands ultra-low latency inference (~300 tokens/second) to facilitate real-time, interruptible conversational interactions ("walkie-talkie" style). Furthermore, QuickML LLM Serving is currently in restricted Early Access and cannot be reliably provisioned for all deployment environments.
+
 ---
 
 ## 🗄️ Database Schema
