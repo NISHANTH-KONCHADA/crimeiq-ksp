@@ -12,6 +12,7 @@ export default function Login({ onAuthenticated }) {
   const [user, setUser] = useState(null);
   const [savingRole, setSavingRole] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('signin'); // 'signin' or 'signup'
   
   const loginDivRef = useRef(null);
   const sdkLoaded = useRef(false);
@@ -47,14 +48,24 @@ export default function Login({ onAuthenticated }) {
   useEffect(() => {
     if (showAuthModal && window.catalyst?.auth) {
       try {
-        window.catalyst.auth.signIn('loginDivElementId', {
+        const config = {
           service_url: window.location.origin + window.location.pathname,
-        });
+        };
+        // Clear previous widget if any
+        if (loginDivRef.current) {
+          loginDivRef.current.innerHTML = '';
+        }
+        
+        if (authMode === 'signin') {
+          window.catalyst.auth.signIn('loginDivElementId', config);
+        } else {
+          window.catalyst.auth.signUp('loginDivElementId', config);
+        }
       } catch (e) {
-        console.error('Catalyst sign-in render failed:', e);
+        console.error('Catalyst auth render failed:', e);
       }
     }
-  }, [showAuthModal]);
+  }, [showAuthModal, authMode]);
 
   const checkRole = async (currentUser) => {
     setCheckingSession(true);
@@ -254,7 +265,22 @@ export default function Login({ onAuthenticated }) {
                 <Lock size={20} />
               </div>
               <h3 className="font-bold text-lg text-slate-900">Secure Portal Access</h3>
-              <p className="text-xs text-slate-500">Sign in via the Zoho Catalyst gateway to continue.</p>
+              <p className="text-xs text-slate-500 mb-4">Sign in via the Zoho Catalyst gateway to continue.</p>
+              
+              <div className="flex bg-slate-200 p-1 rounded-lg w-full max-w-[200px]">
+                <button 
+                  onClick={() => setAuthMode('signin')} 
+                  className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${authMode === 'signin' ? 'bg-white text-slate-900 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Sign In
+                </button>
+                <button 
+                  onClick={() => setAuthMode('signup')} 
+                  className={`flex-1 text-sm font-medium py-1.5 rounded-md transition-colors ${authMode === 'signup' ? 'bg-white text-slate-900 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  Sign Up
+                </button>
+              </div>
             </div>
             {/* The Catalyst Widget embeds here */}
             <div id="loginDivElementId" ref={loginDivRef} className="w-full min-h-[520px] bg-white [&>iframe]:w-full [&>iframe]:min-h-[520px] [&>iframe]:border-none"></div>
