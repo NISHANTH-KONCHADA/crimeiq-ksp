@@ -1,0 +1,7 @@
+/* CrimeIQ custom prose styles for react-markdown chat messages */
+.prose-chat p {
+  margin-bottom: 0.5rem;
+}
+.prose-chat p:last-child {
+  margin-bottom: 0;
+}

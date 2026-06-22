@@ -1,0 +1,13 @@
+{
+        "deployment": {
+                "name": "chat-function",
+                "stack": "node24",
+                "type": "basicio",
+                "env_variables": {
+                        "GROQ_API_KEY": ""
+                }
+        },
+        "execution": {
+                "main": "index.js"
+        }
+}

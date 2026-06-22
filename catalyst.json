@@ -13,9 +13,5 @@
       "name": "react-vite",
       "source": "client"
     }
-  ],
-  "client": {
-    "source": "crimeiq-client",
-    "plugin": "zcatalyst-cli-plugin-react"
-  }
+  ]
 }
