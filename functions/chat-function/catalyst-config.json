@@ -5,6 +5,7 @@
                 "type": "basicio"
         },
         "execution": {
-                "main": "index.js"
+                "main": "index.js",
+                "timeout": 30
         }
 }

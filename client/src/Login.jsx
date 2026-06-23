@@ -12,6 +12,7 @@ export default function Login({ onAuthenticated }) {
   const [user, setUser] = useState(null);
   const [savingRole, setSavingRole] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
   
   const loginDivRef = useRef(null);
   const sdkLoaded = useRef(false);
@@ -201,7 +202,12 @@ export default function Login({ onAuthenticated }) {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <a href="#" className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">Help Desk</a>
+          <button 
+            onClick={() => setShowGuideModal(true)}
+            className="text-sm font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 px-4 py-2 rounded-full transition-colors border border-amber-200 shadow-sm flex items-center gap-2"
+          >
+            📋 Read This First
+          </button>
           <button 
             onClick={() => setShowAuthModal(true)}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2.5 rounded-full transition-colors shadow-md hover:shadow-lg"
@@ -279,6 +285,81 @@ export default function Login({ onAuthenticated }) {
             </div>
             {/* The Catalyst Widget embeds here */}
             <div id="loginDivElementId" ref={loginDivRef} className="w-full min-h-[520px] bg-white [&>iframe]:w-full [&>iframe]:min-h-[520px] [&>iframe]:border-none"></div>
+          </div>
+        </div>
+      )}
+
+      {/* Datathon Guide Modal */}
+      {showGuideModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-3xl max-h-[80vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col relative">
+            <button 
+              onClick={() => setShowGuideModal(false)}
+              className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-900 transition-colors"
+            >
+              ✕
+            </button>
+            <div className="bg-slate-50 p-6 border-b border-slate-100">
+              <h2 className="text-xl font-extrabold text-slate-900">CrimeIQ Mega-Expansion Guide</h2>
+              <p className="text-sm text-slate-500 mt-1">10 brand new features to test for the Datathon.</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 text-sm text-slate-600">
+              
+              <p className="text-sm font-medium text-slate-700 bg-blue-50 border border-blue-100 p-3 rounded-xl mb-4">
+                Welcome to the updated CrimeIQ Intelligence System! Here are all the powerful features you can experience in this platform:
+              </p>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                  <h3 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">⚠️ Real-Time Crime Alerts</h3>
+                  <p className="text-xs">A dynamic red banner at the top of the chat constantly monitors the database for high-frequency recent crimes.</p>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                  <h3 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">🌐 Kannada UI Localization</h3>
+                  <p className="text-xs">Click the [EN/KN] toggle in the chat input bar to instantly switch the entire user interface to Kannada.</p>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                  <h3 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">🤖 AI Coach & Suggestions</h3>
+                  <p className="text-xs">After every query, our intelligent system provides clickable follow-up questions to guide your investigation.</p>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                  <h3 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">📅 Officer Activity Timeline</h3>
+                  <p className="text-xs">Look at the left sidebar. Every specific case you query is permanently tracked so you can jump back to active cases instantly.</p>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                  <h3 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">🔎 Case Similarity Matcher</h3>
+                  <p className="text-xs">When viewing FIR records, click "Find Similar Cases" to instantly run a database query matching crime patterns.</p>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                  <h3 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">🗺️ Geospatial Threat Map</h3>
+                  <p className="text-xs">Click the "Map View" tab to see all incidents plotted geographically. High-density zones are highlighted in red.</p>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                  <h3 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">📊 Batch Case Export</h3>
+                  <p className="text-xs">Export multiple records at once to CSV (for spreadsheets) or GeoJSON (for external GIS software).</p>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl">
+                  <h3 className="font-bold text-slate-800 text-sm mb-2 flex items-center gap-2">🛡️ Role-Based Compliance</h3>
+                  <p className="text-xs">In the left sidebar, change your role. Admins unlock the Global Audit Dashboard. Investigators get different PDF export checklists than Supervisors.</p>
+                </div>
+              </div>
+
+            </div>
+            <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setShowGuideModal(false)}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-6 py-2 rounded-xl transition-colors"
+              >
+                Let's Test It!
+              </button>
+            </div>
           </div>
         </div>
       )}

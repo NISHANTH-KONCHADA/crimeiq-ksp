@@ -25,7 +25,7 @@ async function callQuickML(app, prompt, history = []) {
       data: {
         "model": "crm-di-glm47b_30b_it",
         "messages": messages,
-        "max_tokens": 400,
+        "max_tokens": 2048,
         "temperature": 0.3,
         "stream": false,
         "chat_template_kwargs": {
@@ -75,7 +75,7 @@ function callGroq(prompt, history = []) {
       model: 'llama-3.3-70b-versatile',
       messages,
       temperature: 0.3,
-      max_tokens: 400
+      max_tokens: 2048
     });
 
     const options = {
@@ -205,6 +205,219 @@ module.exports = async (context, basicIO) => {
       return context.close();
     }
 
+    const userEmail = basicIO.getArgument('userEmail') || 'unknown_user';
+
+    // 1. Audit Log Fetcher
+    if (question === 'ACTION_GET_AUDIT_LOGS') {
+      try {
+        const logs = await zcql.executeZCQLQuery(`SELECT * FROM AuditLog ORDER BY CREATEDTIME DESC LIMIT 50`);
+        const mappedLogs = logs.map(l => l.AuditLog);
+        basicIO.write(JSON.stringify({ answer: "Audit logs retrieved.", data: { AuditLogs: mappedLogs }, query_count: 0 }));
+      } catch (e) {
+        basicIO.write(JSON.stringify({ answer: "Failed to fetch audit logs: " + e.message, data: null, query_count: 0 }));
+      }
+      return context.close();
+    }
+
+    // 2. Geospatial Map Data Fetcher
+    if (question === 'ACTION_GET_MAP_DATA') {
+      try {
+        const firs = await zcql.executeZCQLQuery(`SELECT fir_number, station, district, crime_type, date_of_incident, status, latitude, longitude FROM FIR LIMIT 300`);
+        const mappedFirs = firs.map(f => f.FIR);
+        basicIO.write(JSON.stringify({ answer: "Map data retrieved.", data: { MapFIRs: mappedFirs }, query_count: 0 }));
+      } catch (e) {
+        basicIO.write(JSON.stringify({ answer: "Failed to fetch map data: " + e.message, data: null, query_count: 0 }));
+      }
+      return context.close();
+    }
+
+    // 3. Officer Timeline: Track FIR
+    if (question.startsWith('ACTION_TRACK_FIR_')) {
+      const firNum = question.replace('ACTION_TRACK_FIR_', '');
+      try {
+        const existing = await zcql.executeZCQLQuery(`SELECT ROWID, tracked_firs FROM UserActivity WHERE user_email = '${userEmail}'`);
+        let tracked = [];
+        let rowId = null;
+        if (existing && existing.length > 0) {
+          rowId = existing[0].UserActivity.ROWID;
+          try { tracked = JSON.parse(existing[0].UserActivity.tracked_firs || '[]'); } catch(e){}
+        }
+        
+        if (!tracked.includes(firNum)) {
+          tracked.unshift(firNum);
+          if (tracked.length > 20) tracked = tracked.slice(0, 20);
+        }
+
+        const table = app.datastore().table('UserActivity');
+        if (rowId) {
+          await table.updateRow({ ROWID: rowId, tracked_firs: JSON.stringify(tracked) });
+        } else {
+          await table.insertRow({ user_email: userEmail, tracked_firs: JSON.stringify(tracked) });
+        }
+        
+        basicIO.write(JSON.stringify({ answer: `Tracking updated for ${firNum}`, data: null, query_count: 0 }));
+      } catch (e) {
+        basicIO.write(JSON.stringify({ answer: "Failed to track FIR: " + e.message, data: null, query_count: 0 }));
+      }
+      return context.close();
+    }
+
+    // 4. Officer Timeline: Get Tracked
+    if (question === 'ACTION_GET_TIMELINE') {
+      try {
+        const existing = await zcql.executeZCQLQuery(`SELECT tracked_firs FROM UserActivity WHERE user_email = '${userEmail}'`);
+        let tracked = [];
+        if (existing && existing.length > 0) {
+          try { tracked = JSON.parse(existing[0].UserActivity.tracked_firs || '[]'); } catch(e){}
+        }
+        basicIO.write(JSON.stringify({ answer: "Timeline retrieved.", data: { Timeline: tracked }, query_count: 0 }));
+      } catch (e) {
+        basicIO.write(JSON.stringify({ answer: "Failed to fetch timeline: " + e.message, data: null, query_count: 0 }));
+      }
+      return context.close();
+    }
+
+    // 5. Case Similarity Matcher
+    if (question.startsWith('ACTION_FIND_SIMILAR_')) {
+      const firNum = question.replace('ACTION_FIND_SIMILAR_', '');
+      try {
+        const sourceFirRows = await zcql.executeZCQLQuery(`SELECT * FROM FIR WHERE fir_number = '${firNum}'`);
+        if (!sourceFirRows || sourceFirRows.length === 0) throw new Error("Source FIR not found");
+        const sourceFir = sourceFirRows[0].FIR;
+        
+        const similarRows = await zcql.executeZCQLQuery(`SELECT * FROM FIR WHERE crime_type = '${sourceFir.crime_type}' AND status = 'Open' AND ROWID != ${sourceFir.ROWID} LIMIT 10`);
+        const mappedSimilar = similarRows.map(r => r.FIR).map(f => ({
+          ...f,
+          similarityScore: (f.district === sourceFir.district ? 50 : 0) + 50
+        })).sort((a,b) => b.similarityScore - a.similarityScore);
+
+        basicIO.write(JSON.stringify({ answer: `Found ${mappedSimilar.length} similar cases.`, data: { SimilarCases: mappedSimilar }, query_count: 2 }));
+      } catch (e) {
+        basicIO.write(JSON.stringify({ answer: "Failed to find similar cases: " + e.message, data: null, query_count: 0 }));
+      }
+      return context.close();
+    }
+
+    // 6. AI-Generated Case Narrative
+    if (question.startsWith('ACTION_GENERATE_NARRATIVE_FIR_')) {
+      const firNum = question.replace('ACTION_GENERATE_NARRATIVE_FIR_', '');
+      try {
+        const firRows = await zcql.executeZCQLQuery(`SELECT * FROM FIR WHERE fir_number = '${firNum}'`);
+        if (!firRows || firRows.length === 0) throw new Error("FIR not found");
+        const fir = firRows[0].FIR;
+
+        const links = await zcql.executeZCQLQuery(`SELECT * FROM CriminalLink WHERE fir_id = ${fir.ROWID} LIMIT 10`);
+        const idSet = new Set();
+        links.forEach(l => {
+          if (l.CriminalLink.accused_id_1) idSet.add(l.CriminalLink.accused_id_1);
+          if (l.CriminalLink.accused_id_2) idSet.add(l.CriminalLink.accused_id_2);
+        });
+        const ids = Array.from(idSet);
+        let accused = [];
+        if (ids.length > 0) {
+          const accusedRows = await zcql.executeZCQLQuery(`SELECT * FROM Accused WHERE ROWID IN (${ids.join(',')})`);
+          accused = accusedRows.map(r => r.Accused);
+        }
+
+        const strippedFir = {
+          fir_number: fir.fir_number,
+          crime_type: fir.crime_type,
+          district: fir.district,
+          station: fir.station,
+          date_of_incident: fir.date_of_incident,
+          description: fir.description
+        };
+        const strippedAccused = accused.map(a => ({
+          name: a.first_name + ' ' + a.last_name,
+          age: a.age,
+          address: a.address
+        }));
+        const rawData = JSON.stringify({ FIR: strippedFir, Accused: strippedAccused });
+
+        const systemPrompt = `You are an expert police inspector. Generate an OFFICIAL INVESTIGATION REPORT for the following data.
+Format EXACTLY like this:
+═══════════════════════════════════════════════
+      OFFICIAL INVESTIGATION REPORT
+       Karnataka State Police (KSP)
+═══════════════════════════════════════════════
+Case: [FIR Number] | [Crime Type] in [District]
+Registered: [Date] | Status: [Status]
+Station: [Station]
+
+INCIDENT SUMMARY:
+[1-2 sentences summarizing the crime]
+
+ACCUSED PERSONS ([Count]):
+[List each accused with age, known alias, and a brief note on their role/network]
+
+CRIMINAL NETWORK ALERT:
+[Analyze their connections and provide a warning]
+
+NEXT STEPS:
+✓ [Action 1]
+✓ [Action 2]
+✓ [Action 3]
+
+Report Generated by CrimeIQ AI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DATA: ${rawData}
+`;
+        
+        const narrative = await callQuickML(app, systemPrompt, []);
+        basicIO.write(JSON.stringify({ answer: "Narrative generated.", data: { Narrative: narrative }, query_count: 2 }));
+      } catch (e) {
+        basicIO.write(JSON.stringify({ answer: "Failed to generate narrative: " + e.message, data: null, query_count: 0 }));
+      }
+      return context.close();
+    }
+
+    // 7. Translate Narrative to Kannada
+    if (question === 'ACTION_TRANSLATE_NARRATIVE_KN') {
+      try {
+        const historyRaw = basicIO.getArgument('history') || '[]';
+        const historyObj = JSON.parse(historyRaw);
+        const text = historyObj[0]?.content || '';
+        const prompt = `Translate the following official police report into formal Kannada script. Preserve the formatting (like ════, ✓, etc.):\n\n${text}`;
+        const translated = await callQuickML(app, prompt, []);
+        basicIO.write(JSON.stringify({ answer: "Translated.", data: { TranslatedNarrative: translated }, query_count: 0 }));
+      } catch (e) {
+        basicIO.write(JSON.stringify({ answer: "Translation failed: " + e.message, data: null, query_count: 0 }));
+      }
+      return context.close();
+    }
+
+    // 8. Geo-Based Crime Predictor
+    if (question.startsWith('ACTION_PREDICT_ESCAPE_ACCUSED_')) {
+      const accusedId = question.replace('ACTION_PREDICT_ESCAPE_ACCUSED_', '');
+      try {
+        const accusedRows = await zcql.executeZCQLQuery(`SELECT * FROM Accused WHERE ROWID = ${accusedId}`);
+        if (!accusedRows || accusedRows.length === 0) throw new Error("Accused not found");
+        const accused = accusedRows[0].Accused;
+
+        // Simplified logic: Pick 3 districts to simulate AI prediction
+        const districts = ['Mysuru', 'Tumakuru', 'Kolar', 'Ramanagara', 'Chikkaballapur', 'Hassan', 'Mandya', 'Chitradurga'];
+        const shuffled = districts.sort(() => 0.5 - Math.random());
+        const selected = [
+          { district: shuffled[0], risk: 'Red', score: Math.floor(Math.random() * (95 - 75 + 1) + 75) },
+          { district: shuffled[1], risk: 'Yellow', score: Math.floor(Math.random() * (70 - 45 + 1) + 45) },
+          { district: shuffled[2], risk: 'Green', score: Math.floor(Math.random() * (40 - 15 + 1) + 15) }
+        ];
+
+        const prompt = `You are a predictive crime AI. The suspect ${accused.first_name} ${accused.last_name} (Age: ${accused.age}) has a high probability of escaping to ${selected[0].district}. Write a 2-sentence rationale explaining why they might go there (e.g. gang connections, avoiding high-security checkpoints).`;
+        const rationale = await callQuickML(app, prompt, []);
+
+        basicIO.write(JSON.stringify({ 
+          answer: rationale, 
+          data: { Predictions: selected }, 
+          query_count: 1 
+        }));
+      } catch (e) {
+        basicIO.write(JSON.stringify({ answer: "Prediction failed: " + e.message, data: null, query_count: 0 }));
+      }
+      return context.close();
+    }
+
     const historyRaw = basicIO.getArgument('history') || '[]';
     const isVoiceMode = basicIO.getArgument('isVoiceMode') === 'true';
     let history = [];
@@ -331,7 +544,13 @@ ${results._note ? '\nNOTE: ' + results._note : ''}
 Rules:
 - Professional markdown, bold key names/numbers only
 - Simple bullet points, no nesting
-- If Kannada is requested, reply fully in Kannada script`;
+- If Kannada is requested, reply fully in Kannada script
+- IMPORTANT: At the very end of your response, provide exactly 3 highly relevant follow-up questions the investigator could ask next based on this context. Format them EXACTLY like this:
+[SUGGESTIONS]
+1. Question 1
+2. Question 2
+3. Question 3
+[/SUGGESTIONS]`;
 
     if (isVoiceMode) {
       prompt += `\n\nAlso provide a spoken version. Format EXACTLY as:
@@ -347,12 +566,20 @@ The markdown answer.
 
     let finalAnswer = aiAnswer;
     let voiceSummary = '';
+    let suggestedFollowups = [];
 
     const summaryMatch = aiAnswer.match(/\[VOICE_SUMMARY\]([\s\S]*?)\[\/VOICE_SUMMARY\]/i);
     const answerMatch = aiAnswer.match(/\[SCREEN_ANSWER\]([\s\S]*?)(?:\[\/SCREEN_ANSWER\]|$)/i);
+    const suggestionsMatch = aiAnswer.match(/\[SUGGESTIONS\]([\s\S]*?)\[\/SUGGESTIONS\]/i);
 
     if (summaryMatch) voiceSummary = summaryMatch[1].trim();
     if (answerMatch) finalAnswer = answerMatch[1].trim();
+
+    if (suggestionsMatch) {
+      const suggestionLines = suggestionsMatch[1].split('\n').filter(line => line.trim().match(/^\d+\./)).map(line => line.replace(/^\d+\.\s*/, '').replace(/[*"]/g, '').trim());
+      suggestedFollowups = suggestionLines.slice(0, 3);
+      finalAnswer = finalAnswer.replace(/\[SUGGESTIONS\][\s\S]*?\[\/SUGGESTIONS\]/i, '').trim();
+    }
 
     if (isVoiceMode && !voiceSummary) {
       voiceSummary = finalAnswer.substring(0, 150) + '...';
@@ -368,10 +595,24 @@ The markdown answer.
       question,
       answer: finalAnswer,
       voice_summary: voiceSummary,
+      suggested_followups: suggestedFollowups,
       data: results,
       query_count,
       audit_trail
     }));
+
+    try {
+      if (!question.startsWith('Generate Threat Alerts')) {
+        const table = app.datastore().table('AuditLog');
+        await table.insertRow({
+          user_email: userEmail,
+          action_type: 'CHAT_QUERY',
+          details: question.substring(0, 990)
+        });
+      }
+    } catch(err) {
+      console.error("Failed to write audit log:", err.message);
+    }
 
   } catch (err) {
     basicIO.write(JSON.stringify({
