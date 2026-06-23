@@ -8,18 +8,18 @@
 
 <br />
 
-CrimeIQ is a state-of-the-art conversational AI platform designed specifically for the Karnataka State Police (KSP) CCTNS database. Built natively on Zoho Catalyst, it empowers investigators to ask natural-language questions about crimes, analyze criminal networks, and generate predictive threat alerts.
+CrimeIQ is a state-of-the-art conversational AI platform designed specifically for the Karnataka State Police (KSP) CCTNS database. Built natively on Zoho Catalyst, it empowers investigators to ask natural-language questions about crimes, analyze criminal networks, generate case narratives, and predict escape routes in real-time.
 
 ## ✨ Key Features
 
 - **Conversational Intelligence:** Query FIRs, accused profiles, victims, and crime patterns in plain English or Kannada.
-- **Context-Aware Memory:** Seamlessly handle follow-up questions by retaining conversation history and resolving specific FIR contexts automatically.
+- **AI Case Narratives & Kannada Translation 📖:** One-click auto-generation of court-ready official investigation reports that synthesize crime details, timelines, and network connections. Features instantaneous translation into Kannada script.
+- **Geospatial Escape Predictor 🎯:** Interactive maps predicting highly-probable escape routes for accused criminals based on past patterns and geographical proximity, driven by AI rationale.
 - **Explainable AI (XAI):** Built-in audit trails show every executed ZCQL database query, ensuring 100% transparency for police analysts.
 - **Criminal Network Visualization:** D3.js-powered force-directed graphs to visualize syndicate links (associates, gang members, co-accused).
-- **Predictive Threat Alerts:** Automated rule-based engine to detect regional crime spikes and hotspot formations.
 - **Hands-Free Voice Mode:** Immersive, interruptible Web Speech API interface tailored for officers in the field.
 - **Role-Based Access Control:** Secure Catalyst embedded authentication supporting Investigator, Analyst, Supervisor, and Admin clearance tiers.
-- **One-Click PDF Export:** Instantly download AI conversations as formatted, court-ready investigator reports.
+- **One-Click PDF Export:** Instantly download AI case reports and data queries as formatted, printable PDFs.
 
 ---
 
@@ -32,21 +32,21 @@ CrimeIQ uses a fully serverless, zero-maintenance architecture deployed entirely
 | **Frontend** | React 19 + Vite, Tailwind CSS | High-performance SPA, hosted on Catalyst Slate. |
 | **Backend API** | Node.js (Catalyst Basic I/O) | Serverless functions for lightning-fast query resolution. |
 | **Database** | Zoho Catalyst Data Store | Relational NoSQL storage holding synthetic CCTNS data. |
-| **AI Engine** | Catalyst QuickML (`crm-di-glm47b_30b_it`) | Lightning-fast Generative Language Model for natural language understanding. |
-| **Authentication** | Catalyst Auth & User Profiles | Secure embedded login with email/password and social OAuth. |
-| **Visualization** | D3.js | Interactive rendering of complex criminal hierarchies. |
+| **AI Engine** | Catalyst QuickML (`crm-di-glm47b_30b_it`) | Generative Language Model for natural language understanding and narrative synthesis. |
+| **Authentication** | Catalyst Auth & User Profiles | Secure embedded login with email/password and role definitions. |
+| **Visualization** | D3.js & React-Leaflet | Interactive rendering of complex criminal hierarchies and geospatial risk maps. |
 
 ### 🏆 Datathon Catalyst Services Compliance
 CrimeIQ strictly adheres to the mandatory deployment guidelines, heavily leveraging the native Zoho Catalyst ecosystem.
 
 | Datathon Rule | Required Service | Implementation in CrimeIQ |
 | :--- | :--- | :--- |
-| **Rule #1** (Serverless backend logic) | **Catalyst Serverless** | Basic I/O functions power the backend APIs:<br>• `chat-function`<br>• `role-function`<br>• `seed-function` |
+| **Rule #1** (Serverless backend logic) | **Catalyst Serverless** | Basic I/O functions power the backend APIs (`chat-function`, `role-function`, `seed-function`). |
 | **Rule #4** (Frontend/SPA Hosting) | **Catalyst Slate** | The entire React/Vite web client is hosted via Slate. |
 | **Rule #6** (Relational database) | **Catalyst Data Store** | ZCQL engine powers complex relational JOINs and data retrieval across all structured crime tables. |
 | **Rule #9** (Cache) | **Catalyst Cache** | High-speed memory caching is used in `role-function` to instantly resolve Officer identities. |
 | **Rule #10** (Full-text search) | **Catalyst Data Store** | Used extensively to execute text-matching searches across FIR descriptions and case context. |
-| **Rule #11** (LLM & Generative AI) | **Catalyst QuickML** | The `crm-di-glm47b_30b_it` (GLM 4.7 Flash) model deployed via QuickML powers the core Conversational AI and logic reasoning. |
+| **Rule #11** (LLM & Generative AI) | **Catalyst QuickML** | The `crm-di-glm47b_30b_it` model deployed via QuickML powers the core Conversational AI, translations, and predictive reasoning. |
 | **Rule #17** (User Auth & Login) | **Catalyst Authentication** | Secure Officer Login is handled natively via Embedded Auth. |
 | **Rule #18** (API routing & security) | **Catalyst API Gateway** | Basic I/O functions are securely exposed and routed via Catalyst's managed API gateway endpoints. |
 | **Rule #20** (Scheduled jobs) | **Catalyst Cron** | Nightly `threat-cron-function` scans the database to aggregate unresolved FIRs and predict crime spikes. |
@@ -74,16 +74,16 @@ crimeiq-ksp/
 │   ├── index.html             # Entry point with Catalyst Web SDK
 │   ├── vite.config.js         # Build configuration and API proxies
 │   └── src/
-│       ├── App.jsx            # Main chat interface and logic core
+│       ├── App.jsx            # Main chat interface, logic core, AI Case Reports, and Maps
 │       ├── Login.jsx          # Embedded auth and role selection
 │       ├── NetworkGraph.jsx   # D3.js visualization component
 │       ├── VoiceOverlay.jsx   # Voice mode UI
 │       └── main.jsx           # React DOM renderer
 └── functions/
-    ├── chat-function/         # AI query engine & ZCQL orchestrator (Basic I/O)
-    ├── role-function/         # User authorization & caching (Basic I/O)
-    ├── seed-function/         # Database initialization routine (Basic I/O)
-    └── threat-cron-function/  # Nightly predictive alerts (Cron)
+    ├── chat-function/         # AI query engine, Translator, & ZCQL orchestrator
+    ├── role-function/         # User authorization & caching
+    ├── seed-function/         # Database initialization routine
+    └── threat-cron-function/  # Nightly predictive alerts
 ```
 
 ---
