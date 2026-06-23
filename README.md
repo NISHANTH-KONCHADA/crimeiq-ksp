@@ -32,7 +32,7 @@ CrimeIQ uses a fully serverless, zero-maintenance architecture deployed entirely
 | **Frontend** | React 19 + Vite, Tailwind CSS | High-performance SPA, hosted on Catalyst Slate. |
 | **Backend API** | Node.js (Catalyst Basic I/O) | Serverless functions for lightning-fast query resolution. |
 | **Database** | Zoho Catalyst Data Store | Relational NoSQL storage holding synthetic CCTNS data. |
-| **AI Engine** | Groq API (`llama-3.3-70b-versatile`) | Ultra-low latency LLM inference for natural language understanding. |
+| **AI Engine** | Catalyst QuickML (`crm-di-glm47b_30b_it`) | Lightning-fast Generative Language Model for natural language understanding. |
 | **Authentication** | Catalyst Auth & User Profiles | Secure embedded login with email/password and social OAuth. |
 | **Visualization** | D3.js | Interactive rendering of complex criminal hierarchies. |
 
@@ -44,9 +44,9 @@ CrimeIQ strictly adheres to the mandatory deployment guidelines, heavily leverag
 | **Rule #1** (Serverless backend logic) | **Catalyst Serverless** | Basic I/O functions power the backend APIs:<br>• `chat-function`<br>• `role-function`<br>• `seed-function` |
 | **Rule #4** (Frontend/SPA Hosting) | **Catalyst Slate** | The entire React/Vite web client is hosted via Slate. |
 | **Rule #6** (Relational database) | **Catalyst Data Store** | ZCQL engine powers complex relational JOINs and data retrieval across all structured crime tables. |
+| **Rule #9** (Cache) | **Catalyst Cache** | High-speed memory caching is used in `role-function` to instantly resolve Officer identities. |
 | **Rule #10** (Full-text search) | **Catalyst Data Store** | Used extensively to execute text-matching searches across FIR descriptions and case context. |
 | **Rule #11** (LLM & Generative AI) | **Catalyst QuickML** | The `crm-di-glm47b_30b_it` (GLM 4.7 Flash) model deployed via QuickML powers the core Conversational AI and logic reasoning. |
-| **Rule #9** (Cache) | **Catalyst Cache** | High-speed memory caching is used in `role-function` to instantly resolve Officer identities. |
 | **Rule #17** (User Auth & Login) | **Catalyst Authentication** | Secure Officer Login is handled natively via Embedded Auth. |
 | **Rule #18** (API routing & security) | **Catalyst API Gateway** | Basic I/O functions are securely exposed and routed via Catalyst's managed API gateway endpoints. |
 | **Rule #20** (Scheduled jobs) | **Catalyst Cron** | Nightly `threat-cron-function` scans the database to aggregate unresolved FIRs and predict crime spikes. |
@@ -81,8 +81,9 @@ crimeiq-ksp/
 │       └── main.jsx           # React DOM renderer
 └── functions/
     ├── chat-function/         # AI query engine & ZCQL orchestrator (Basic I/O)
-    ├── role-function/         # User authorization & persistence (Basic I/O)
-    └── seed-function/         # Database initialization routine
+    ├── role-function/         # User authorization & caching (Basic I/O)
+    ├── seed-function/         # Database initialization routine (Basic I/O)
+    └── threat-cron-function/  # Nightly predictive alerts (Cron)
 ```
 
 ---
@@ -133,14 +134,8 @@ Deploying the entire infrastructure (Frontend Slate + Backend Functions) takes a
 catalyst deploy
 ```
 
-### Environment Variables (Important)
-CrimeIQ requires a Groq API Key to power the LLM. For security, this is strictly managed via Catalyst Environment Variables and is **never** committed to source code.
-
-1. Go to the **Catalyst Console** → `crimeiq` project.
-2. Navigate to **Serverless** → **Functions** → `chat-function` → **Configurations**.
-3. Under **Environment Variables**, add:
-   - Key: `GROQ_API_KEY`
-   - Value: `your_groq_api_key_here`
+### 🔒 Native Security (Zero External Keys)
+CrimeIQ is built entirely on the Catalyst ecosystem. The Conversational AI utilizes **Catalyst QuickML**, which means there are absolutely **zero external API keys** (like OpenAI or Groq) required in your environment variables. All authentication is securely managed intra-service via Catalyst's native SDK and role-based access.
 
 ---
 
