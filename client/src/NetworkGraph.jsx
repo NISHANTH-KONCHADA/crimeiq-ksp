@@ -81,12 +81,12 @@ export default function NetworkGraph({ accused, links }) {
 
     const simulation = d3
       .forceSimulation(nodes)
-      .force('link', d3.forceLink(validLinks).id((d) => d.id).distance(100).strength(0.8))
-      .force('charge', d3.forceManyBody().strength(-300))
+      .force('link', d3.forceLink(validLinks).id((d) => d.id).distance(160).strength(0.8))
+      .force('charge', d3.forceManyBody().strength(-600))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collide', d3.forceCollide(45))
-      .force('x', d3.forceX(width / 2).strength(0.08))
-      .force('y', d3.forceY(height / 2).strength(0.08));
+      .force('collide', d3.forceCollide(75))
+      .force('x', d3.forceX(width / 2).strength(0.05))
+      .force('y', d3.forceY(height / 2).strength(0.05));
 
     // Draw Smooth Bezier Curve Links
     const link = svg
