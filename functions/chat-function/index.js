@@ -42,8 +42,11 @@ async function callQuickML(app, prompt, history = []) {
 
     const resp = await requester.send(requestObj);
     
-    // Handle standard VLM response formats
-    if (resp.data && resp.data.choices && resp.data.choices.length > 0) {
+    // Handle standard VLM/GLM response formats
+    if (resp.data && resp.data.response) {
+      // GLM 4.7 Flash seems to return the text inside 'response'
+      return resp.data.response;
+    } else if (resp.data && resp.data.choices && resp.data.choices.length > 0) {
       return resp.data.choices[0].message.content;
     } else if (resp.data && resp.data.answer) {
       return resp.data.answer;
