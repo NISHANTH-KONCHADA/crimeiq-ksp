@@ -24,6 +24,7 @@ async function callQuickML(app, prompt, history = []) {
       data: {
         "prompt": finalPrompt,
         "model": "VL-Qwen3.6-35B-A3B",
+        "images": ["R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"], // 1x1 dummy image because VLM requires inputstream
         "system_prompt": "You are CrimeIQ, an intelligent crime analysis assistant for the Karnataka State Police. You remember the conversation context and can answer follow-up questions that refer to previously discussed people, cases, or locations. IMPORTANT: If the user asks in Kannada or explicitly requests Kannada, you MUST reply in fluent Kannada script. If the user asks for alerts or warnings, summarize the Alerts provided in the database results.",
         "top_k": 50,
         "top_p": 0.9,
