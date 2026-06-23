@@ -13,23 +13,24 @@ async function callQuickML(app, prompt, history = []) {
   try {
     const requester = new AuthorizedHttpClient(app);
     
-    // Format history for QuickML (assuming OpenAI-like message array if supported,
-    // otherwise we combine history into the prompt)
-    const historyText = history.map(h => `${h.role}: ${h.content}`).join('\n');
-    const finalPrompt = historyText ? `Previous Conversation:\n${historyText}\n\nUser: ${prompt}` : prompt;
+    const messages = [
+      { role: 'system', content: 'You are CrimeIQ, an intelligent crime analysis assistant for the Karnataka State Police. You remember the conversation context and can answer follow-up questions that refer to previously discussed people, cases, or locations. IMPORTANT: If the user asks in Kannada or explicitly requests Kannada, you MUST reply in fluent Kannada script. If the user asks for alerts or warnings, summarize the Alerts provided in the database results.' },
+      ...history,
+      { role: 'user', content: prompt }
+    ];
 
     const requestObj = {
       method: 'POST',
-      path: '/quickml/v1/project/50322000000019001/vlm/chat',
+      path: '/quickml/v1/project/50322000000019001/glm/chat',
       data: {
-        "prompt": finalPrompt,
-        "model": "VL-Qwen3.6-35B-A3B",
-        "images": ["R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"], // 1x1 dummy image because VLM requires inputstream
-        "system_prompt": "You are CrimeIQ, an intelligent crime analysis assistant for the Karnataka State Police. You remember the conversation context and can answer follow-up questions that refer to previously discussed people, cases, or locations. IMPORTANT: If the user asks in Kannada or explicitly requests Kannada, you MUST reply in fluent Kannada script. If the user asks for alerts or warnings, summarize the Alerts provided in the database results.",
-        "top_k": 50,
-        "top_p": 0.9,
+        "model": "crm-di-glm47b_30b_it",
+        "messages": messages,
+        "max_tokens": 400,
         "temperature": 0.3,
-        "max_tokens": 400
+        "stream": false,
+        "chat_template_kwargs": {
+          "enable_thinking": false
+        }
       },
       type: "json",
       headers: {

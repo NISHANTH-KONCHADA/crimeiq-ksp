@@ -45,7 +45,7 @@ CrimeIQ strictly adheres to the mandatory deployment guidelines, heavily leverag
 | **Rule #4** (Frontend/SPA Hosting) | **Catalyst Slate** | The entire React/Vite web client is hosted via Slate. |
 | **Rule #6** (Relational database) | **Catalyst Data Store** | ZCQL engine powers complex relational JOINs and data retrieval across all structured crime tables. |
 | **Rule #10** (Full-text search) | **Catalyst Data Store** | Used extensively to execute text-matching searches across FIR descriptions and case context. |
-| **Rule #11** (LLM & Generative AI) | **Catalyst QuickML** | The `VL-Qwen3.6-35B-A3B` model deployed via QuickML powers the core Conversational AI and logic reasoning. |
+| **Rule #11** (LLM & Generative AI) | **Catalyst QuickML** | The `crm-di-glm47b_30b_it` (GLM 4.7 Flash) model deployed via QuickML powers the core Conversational AI and logic reasoning. |
 | **Rule #9** (Cache) | **Catalyst Cache** | High-speed memory caching is used in `role-function` to instantly resolve Officer identities. |
 | **Rule #17** (User Auth & Login) | **Catalyst Authentication** | Secure Officer Login is handled natively via Embedded Auth. |
 | **Rule #18** (API routing & security) | **Catalyst API Gateway** | Basic I/O functions are securely exposed and routed via Catalyst's managed API gateway endpoints. |
