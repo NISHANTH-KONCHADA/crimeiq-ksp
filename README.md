@@ -45,14 +45,11 @@ CrimeIQ strictly adheres to the mandatory deployment guidelines, heavily leverag
 | **Rule #4** (Frontend/SPA Hosting) | **Catalyst Slate** | The entire React/Vite web client is hosted via Slate. |
 | **Rule #6** (Relational database) | **Catalyst Data Store** | ZCQL engine powers complex relational JOINs and data retrieval across all structured crime tables. |
 | **Rule #10** (Full-text search) | **Catalyst Data Store** | Used extensively to execute text-matching searches across FIR descriptions and case context. |
+| **Rule #11** (LLM & Generative AI) | **Catalyst QuickML** | The `VL-Qwen3.6-35B-A3B` model deployed via QuickML powers the core Conversational AI and logic reasoning. |
 | **Rule #9** (Cache) | **Catalyst Cache** | High-speed memory caching is used in `role-function` to instantly resolve Officer identities. |
 | **Rule #17** (User Auth & Login) | **Catalyst Authentication** | Secure Officer Login is handled natively via Embedded Auth. |
 | **Rule #18** (API routing & security) | **Catalyst API Gateway** | Basic I/O functions are securely exposed and routed via Catalyst's managed API gateway endpoints. |
 | **Rule #20** (Scheduled jobs) | **Catalyst Cron** | Nightly `threat-cron-function` scans the database to aggregate unresolved FIRs and predict crime spikes. |
-
-> [!NOTE]
-> **Technical Justification for LLM Selection (Exception to Rule #11)**
-> CrimeIQ utilizes the `llama-3.3-70b-versatile` model via the **Groq API** instead of Catalyst QuickML. This architecture deviation was strictly necessary to support CrimeIQ's immersive **Voice Mode**, which demands ultra-low latency inference (~300 tokens/second) to facilitate real-time, interruptible conversational interactions ("walkie-talkie" style). Furthermore, QuickML LLM Serving is currently in restricted Early Access and cannot be reliably provisioned for all deployment environments.
 
 ---
 
