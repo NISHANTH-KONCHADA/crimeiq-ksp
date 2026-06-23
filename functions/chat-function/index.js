@@ -5,6 +5,59 @@ const https = require('https');
 // Serverless → Functions → chat-function → Configurations → Environment Variables → GROQ_API_KEY
 const GROQ_KEY = process.env.GROQ_API_KEY || '';
 
+// ── QuickML Implementation ───────────────────────────────────────────────────
+// Using the Catalyst QuickML VLM endpoint generated from the console
+const { AuthorizedHttpClient } = require('zcatalyst-sdk-node/lib/utils/api-request');
+
+async function callQuickML(app, prompt, history = []) {
+  try {
+    const requester = new AuthorizedHttpClient(app);
+    
+    // Format history for QuickML (assuming OpenAI-like message array if supported,
+    // otherwise we combine history into the prompt)
+    const historyText = history.map(h => `${h.role}: ${h.content}`).join('\n');
+    const finalPrompt = historyText ? `Previous Conversation:\n${historyText}\n\nUser: ${prompt}` : prompt;
+
+    const requestObj = {
+      method: 'POST',
+      path: '/quickml/v1/project/50322000000019001/vlm/chat',
+      data: {
+        "prompt": finalPrompt,
+        "model": "VL-Qwen3.6-35B-A3B",
+        "system_prompt": "You are CrimeIQ, an intelligent crime analysis assistant for the Karnataka State Police. You remember the conversation context and can answer follow-up questions that refer to previously discussed people, cases, or locations. IMPORTANT: If the user asks in Kannada or explicitly requests Kannada, you MUST reply in fluent Kannada script. If the user asks for alerts or warnings, summarize the Alerts provided in the database results.",
+        "top_k": 50,
+        "top_p": 0.9,
+        "temperature": 0.3,
+        "max_tokens": 400
+      },
+      type: "json",
+      headers: {
+        'CATALYST-ORG': '60074288350'
+      },
+      catalyst: false, 
+      origin: 'https://api.catalyst.zoho.in'
+    };
+
+    const resp = await requester.send(requestObj);
+    
+    // Handle standard VLM response formats
+    if (resp.data && resp.data.choices && resp.data.choices.length > 0) {
+      return resp.data.choices[0].message.content;
+    } else if (resp.data && resp.data.answer) {
+      return resp.data.answer;
+    } else if (resp.data && resp.data.result) {
+      return resp.data.result;
+    } else {
+      return typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+    }
+  } catch (err) {
+    console.error("QuickML Error:", err);
+    return `QuickML request failed: ${err.message || 'Unknown error'}`;
+  }
+}
+
+// ── Groq Fallback (Commented Out) ──────────────────────────────────────────
+/*
 function callGroq(prompt, history = []) {
   return new Promise((resolve, reject) => {
     const messages = [
@@ -59,6 +112,7 @@ function callGroq(prompt, history = []) {
     req.end();
   });
 }
+*/
 
 // ── Query builder ────────────────────────────────────────────────────────────
 function buildQueries(question, historyText = '') {
@@ -260,6 +314,7 @@ module.exports = async (context, basicIO) => {
       .filter(Boolean)
       .join('\n\n');
 
+
     let prompt = `Answer the investigator's question based on the database data below. Be concise (under 150 words).
 
 QUESTION: "${question}"
@@ -283,7 +338,7 @@ The markdown answer.
 [/SCREEN_ANSWER]`;
     }
 
-    const aiAnswer = await callGroq(prompt, history);
+    const aiAnswer = await callQuickML(app, prompt, history);
 
     let finalAnswer = aiAnswer;
     let voiceSummary = '';
