@@ -8,7 +8,7 @@ module.exports = async (cronDetails, context) => {
 
     // Simulate scanning FIR database for new patterns
     const zcql = app.zcql();
-    const query = `SELECT COUNT(ROWID) FROM FIR WHERE status = 'Open'`;
+    const query = `SELECT COUNT(ROWID) FROM CaseMaster`;
     
     // In a real scenario, this would aggregate data and possibly write to an Alerts table.
     // We execute a simple query to ensure the DB connection and Catalyst Datastore service is hit.

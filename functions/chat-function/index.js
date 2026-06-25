@@ -1,12 +1,8 @@
 const catalyst = require('zcatalyst-sdk-node');
 const https = require('https');
 
-// API key is set as an environment variable in the Catalyst console:
-// Serverless → Functions → chat-function → Configurations → Environment Variables → GROQ_API_KEY
 const GROQ_KEY = process.env.GROQ_API_KEY || '';
 
-// ── QuickML Implementation ───────────────────────────────────────────────────
-// Using the Catalyst QuickML VLM endpoint generated from the console
 const { AuthorizedHttpClient } = require('zcatalyst-sdk-node/lib/utils/api-request');
 
 async function callQuickML(app, prompt, history = []) {
@@ -42,9 +38,7 @@ async function callQuickML(app, prompt, history = []) {
 
     const resp = await requester.send(requestObj);
     
-    // Handle standard VLM/GLM response formats
     if (resp.data && resp.data.response) {
-      // GLM 4.7 Flash seems to return the text inside 'response'
       return resp.data.response;
     } else if (resp.data && resp.data.choices && resp.data.choices.length > 0) {
       return resp.data.choices[0].message.content;
@@ -61,65 +55,6 @@ async function callQuickML(app, prompt, history = []) {
   }
 }
 
-// ── Groq Fallback (Commented Out) ──────────────────────────────────────────
-/*
-function callGroq(prompt, history = []) {
-  return new Promise((resolve, reject) => {
-    const messages = [
-      { role: 'system', content: 'You are CrimeIQ, an intelligent crime analysis assistant for the Karnataka State Police. You remember the conversation context and can answer follow-up questions that refer to previously discussed people, cases, or locations. IMPORTANT: If the user asks in Kannada or explicitly requests Kannada, you MUST reply in fluent Kannada script. If the user asks for alerts or warnings, summarize the Alerts provided in the database results.' },
-      ...history,
-      { role: 'user', content: prompt }
-    ];
-
-    const body = JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages,
-      temperature: 0.3,
-      max_tokens: 2048
-    });
-
-    const options = {
-      hostname: 'api.groq.com',
-      path: '/openai/v1/chat/completions',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_KEY}`,
-        'Content-Length': Buffer.byteLength(body)
-      },
-      timeout: 20000
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.error) {
-            resolve(`Groq error: ${parsed.error.message}`);
-            return;
-          }
-          const text = parsed.choices?.[0]?.message?.content || 'No response from AI.';
-          resolve(text);
-        } catch (e) {
-          resolve('Failed to parse Groq response: ' + data.substring(0, 200));
-        }
-      });
-    });
-
-    req.on('timeout', () => {
-      req.destroy();
-      resolve('AI response timed out. Please try again.');
-    });
-    req.on('error', (e) => resolve('Groq request failed: ' + e.message));
-    req.write(body);
-    req.end();
-  });
-}
-*/
-
-// ── Query builder ────────────────────────────────────────────────────────────
 function buildQueries(question, historyText = '') {
   const q = question.toLowerCase();
   const queries = [];
@@ -128,10 +63,10 @@ function buildQueries(question, historyText = '') {
   const foundDistrict = districts.find(d => q.includes(d));
 
   const crimeMap = {
-    'theft': 'Theft', 'burglary': 'Burglary', 'assault': 'Assault',
-    'robbery': 'Robbery', 'fraud': 'Fraud', 'cyber': 'Cybercrime',
-    'murder': 'Murder', 'kidnap': 'Kidnapping', 'drug': 'Drug Trafficking',
-    'domestic': 'Domestic Violence'
+    'theft': 'Theft (379)', 'burglary': 'Burglary (457)', 'assault': 'Assault (323)',
+    'robbery': 'Robbery (392)', 'fraud': 'Fraud (420)', 'cyber': 'Cybercrime (66C IT Act)',
+    'murder': 'Murder (302)', 'kidnap': 'Kidnapping', 'drug': 'Drug Trafficking (21 NDPS)',
+    'domestic': 'Domestic Violence (498A)'
   };
   const foundCrime = Object.entries(crimeMap).find(([k]) => q.includes(k));
 
@@ -142,8 +77,8 @@ function buildQueries(question, historyText = '') {
   let specificFirNumber = null;
   if (isFollowUp) {
     const searchText = question + ' ' + historyText;
-    const firNumberMatch = searchText.match(/FIR-[A-Z]{3}-\d{4}-\d{4}/i);
-    specificFirNumber = firNumberMatch ? firNumberMatch[0].toUpperCase() : null;
+    const firNumberMatch = searchText.match(/1\d{17}/i);
+    specificFirNumber = firNumberMatch ? firNumberMatch[0] : null;
   }
 
   const isPersonQuery = q.includes('accused') || q.includes('offender') || q.includes('criminal') || q.includes('suspect');
@@ -154,24 +89,31 @@ function buildQueries(question, historyText = '') {
 
   let firWhere = [];
   if (specificFirNumber) {
-    firWhere.push(`fir_number = '${specificFirNumber}'`);
+    firWhere.push(`CaseMaster.CrimeNo = '${specificFirNumber}'`);
   } else {
     if (foundDistrict) {
       const capitalized = foundDistrict.charAt(0).toUpperCase() + foundDistrict.slice(1);
-      firWhere.push(`district = '${capitalized}'`);
+      firWhere.push(`District.DistrictName = '${capitalized}'`);
     }
-    if (foundCrime) firWhere.push(`crime_type = '${foundCrime[1]}'`);
-    if (foundYear) firWhere.push(`date_of_incident LIKE '${foundYear}%'`);
-    if (isStatusQuery && q.includes('open')) firWhere.push(`status = 'Open'`);
-    if (isStatusQuery && q.includes('closed')) firWhere.push(`status = 'Closed'`);
+    if (foundCrime) firWhere.push(`CrimeSubHead.CrimeHeadName = '${foundCrime[1]}'`);
+    if (foundYear) firWhere.push(`CaseMaster.CrimeRegisteredDate LIKE '${foundYear}%'`);
+    if (isStatusQuery && q.includes('open')) firWhere.push(`CaseStatusMaster.CaseStatusName = 'Open'`);
+    if (isStatusQuery && q.includes('closed')) firWhere.push(`CaseStatusMaster.CaseStatusName = 'Closed'`);
   }
 
-  const firQuery = `SELECT * FROM FIR ${firWhere.length ? 'WHERE ' + firWhere.join(' AND ') : ''} LIMIT 15`;
-  queries.push({ type: 'FIR', query: firQuery });
+  const baseSelect = `SELECT CaseMaster.ROWID, CaseMaster.CrimeNo, CaseMaster.CaseNo, CaseMaster.CrimeRegisteredDate, CaseMaster.IncidentFromDate, CaseMaster.latitude, CaseMaster.longitude, CaseMaster.BriefFacts, Unit.UnitName, District.DistrictName, CrimeSubHead.CrimeHeadName, CrimeHead.CrimeGroupName, CaseStatusMaster.CaseStatusName, GravityOffence.LookupValue FROM CaseMaster INNER JOIN CrimeSubHead ON CaseMaster.CrimeMinorHeadID = CrimeSubHead.ROWID INNER JOIN CrimeHead ON CaseMaster.CrimeMajorHeadID = CrimeHead.ROWID INNER JOIN Unit ON CaseMaster.PoliceStationID = Unit.ROWID INNER JOIN District ON Unit.DistrictID = District.ROWID INNER JOIN CaseStatusMaster ON CaseMaster.CaseStatusID = CaseStatusMaster.ROWID INNER JOIN GravityOffence ON CaseMaster.GravityOffenceID = GravityOffence.ROWID`;
+
+  const firQuery = `${baseSelect} ${firWhere.length ? 'WHERE ' + firWhere.join(' AND ') : ''} LIMIT 15`;
+  queries.push({ type: 'CaseMaster', query: firQuery });
 
   if (isPersonQuery || isNetworkQuery) {
-    queries.push({ type: 'CriminalLink', query: `SELECT * FROM CriminalLink LIMIT 15` });
-    queries.push({ type: 'Accused', query: `SELECT * FROM Accused LIMIT 10`, resolveFromLinks: true });
+    if (isNetworkQuery) {
+      queries.push({ type: 'ArrestSurrender', query: `SELECT * FROM ArrestSurrender LIMIT 25`});
+      queries.push({ type: 'inv_arrestsurrenderaccused', query: `SELECT * FROM inv_arrestsurrenderaccused LIMIT 50`});
+      queries.push({ type: 'Accused', query: `SELECT * FROM Accused LIMIT 25`});
+    } else {
+      queries.push({ type: 'Accused', query: `SELECT * FROM Accused LIMIT 10`, resolveFromLinks: true });
+    }
   }
 
   if (isVictimQuery) {
@@ -179,13 +121,12 @@ function buildQueries(question, historyText = '') {
   }
 
   if (isPredictiveQuery) {
-    queries.push({ type: 'PredictiveAlerts', query: `SELECT district, crime_type, date_of_incident FROM FIR LIMIT 200` });
+    queries.push({ type: 'PredictiveAlerts', query: `${baseSelect} LIMIT 200` });
   }
 
-  return { queries, specificFirNumber };
+  return { queries, specificFirNumber, baseSelect };
 }
 
-// ── Main function ─────────────────────────────────────────────────────────
 module.exports = async (context, basicIO) => {
   const app = catalyst.initialize(context);
   const zcql = app.zcql();
@@ -196,100 +137,57 @@ module.exports = async (context, basicIO) => {
     const qParam = basicIO.getArgument('q');
     question = typeof qParam === 'string' ? qParam : (qParam?.q || qParam?.question || '');
 
-    // SECRET SEED TRIGGER
     if (question && question.startsWith('SEED_DATABASE_NOW_BATCH_')) {
-      const batchNum = parseInt(question.split('_').pop());
-      const seedScript = require('./seed');
-      const seedResult = await seedScript(app, batchNum);
-      basicIO.write(JSON.stringify({ answer: seedResult, data: null, query_count: 0 }));
-      return context.close();
+      return require('../seed-function/index')(context, basicIO);
     }
 
-    const userEmail = basicIO.getArgument('userEmail') || 'unknown_user';
-
-    // 1. Audit Log Fetcher
-    if (question === 'ACTION_GET_AUDIT_LOGS') {
-      try {
-        const logs = await zcql.executeZCQLQuery(`SELECT * FROM AuditLog ORDER BY CREATEDTIME DESC LIMIT 50`);
-        const mappedLogs = logs.map(l => l.AuditLog);
-        basicIO.write(JSON.stringify({ answer: "Audit logs retrieved.", data: { AuditLogs: mappedLogs }, query_count: 0 }));
-      } catch (e) {
-        basicIO.write(JSON.stringify({ answer: "Failed to fetch audit logs: " + e.message, data: null, query_count: 0 }));
-      }
-      return context.close();
-    }
-
-    // 2. Geospatial Map Data Fetcher
+    const userEmail = basicIO.getArgument('email') || 'unknown';
+    const role = basicIO.getArgument('role') || 'Investigator';
+    
+    // ACTION_GET_MAP_DATA
     if (question === 'ACTION_GET_MAP_DATA') {
       try {
-        const firs = await zcql.executeZCQLQuery(`SELECT fir_number, station, district, crime_type, date_of_incident, status, latitude, longitude FROM FIR LIMIT 300`);
-        const mappedFirs = firs.map(f => f.FIR);
-        basicIO.write(JSON.stringify({ answer: "Map data retrieved.", data: { MapFIRs: mappedFirs }, query_count: 0 }));
+        const baseSelect = `SELECT CaseMaster.ROWID, CaseMaster.CrimeNo, CaseMaster.CaseNo, CaseMaster.CrimeRegisteredDate, CaseMaster.IncidentFromDate, CaseMaster.latitude, CaseMaster.longitude, CaseMaster.BriefFacts, Unit.UnitName, District.DistrictName, CrimeSubHead.CrimeHeadName, CrimeHead.CrimeGroupName, CaseStatusMaster.CaseStatusName, GravityOffence.LookupValue FROM CaseMaster INNER JOIN CrimeSubHead ON CaseMaster.CrimeMinorHeadID = CrimeSubHead.ROWID INNER JOIN CrimeHead ON CaseMaster.CrimeMajorHeadID = CrimeHead.ROWID INNER JOIN Unit ON CaseMaster.PoliceStationID = Unit.ROWID INNER JOIN District ON Unit.DistrictID = District.ROWID INNER JOIN CaseStatusMaster ON CaseMaster.CaseStatusID = CaseStatusMaster.ROWID INNER JOIN GravityOffence ON CaseMaster.GravityOffenceID = GravityOffence.ROWID LIMIT 200`;
+        const rows = await zcql.executeZCQLQuery(baseSelect);
+        const mapFIRs = rows.map(r => {
+          const flat = {};
+          Object.keys(r).forEach(table => Object.assign(flat, r[table]));
+          return {
+            fir_number: flat.CrimeNo,
+            crime_type: flat.CrimeHeadName,
+            station: flat.UnitName,
+            date_of_incident: flat.IncidentFromDate,
+            status: flat.CaseStatusName,
+            latitude: flat.latitude,
+            longitude: flat.longitude
+          };
+        });
+        basicIO.write(JSON.stringify({ answer: "Map data fetched", data: { MapFIRs: mapFIRs }, query_count: 1 }));
       } catch (e) {
-        basicIO.write(JSON.stringify({ answer: "Failed to fetch map data: " + e.message, data: null, query_count: 0 }));
+        basicIO.write(JSON.stringify({ answer: "Failed map: " + e.message, data: null, query_count: 0 }));
       }
       return context.close();
     }
-
-    // 3. Officer Timeline: Track FIR
-    if (question.startsWith('ACTION_TRACK_FIR_')) {
-      const firNum = question.replace('ACTION_TRACK_FIR_', '');
-      try {
-        const existing = await zcql.executeZCQLQuery(`SELECT ROWID, tracked_firs FROM UserActivity WHERE user_email = '${userEmail}'`);
-        let tracked = [];
-        let rowId = null;
-        if (existing && existing.length > 0) {
-          rowId = existing[0].UserActivity.ROWID;
-          try { tracked = JSON.parse(existing[0].UserActivity.tracked_firs || '[]'); } catch(e){}
-        }
-        
-        if (!tracked.includes(firNum)) {
-          tracked.unshift(firNum);
-          if (tracked.length > 20) tracked = tracked.slice(0, 20);
-        }
-
-        const table = app.datastore().table('UserActivity');
-        if (rowId) {
-          await table.updateRow({ ROWID: rowId, tracked_firs: JSON.stringify(tracked) });
-        } else {
-          await table.insertRow({ user_email: userEmail, tracked_firs: JSON.stringify(tracked) });
-        }
-        
-        basicIO.write(JSON.stringify({ answer: `Tracking updated for ${firNum}`, data: null, query_count: 0 }));
-      } catch (e) {
-        basicIO.write(JSON.stringify({ answer: "Failed to track FIR: " + e.message, data: null, query_count: 0 }));
-      }
-      return context.close();
-    }
-
-    // 4. Officer Timeline: Get Tracked
-    if (question === 'ACTION_GET_TIMELINE') {
-      try {
-        const existing = await zcql.executeZCQLQuery(`SELECT tracked_firs FROM UserActivity WHERE user_email = '${userEmail}'`);
-        let tracked = [];
-        if (existing && existing.length > 0) {
-          try { tracked = JSON.parse(existing[0].UserActivity.tracked_firs || '[]'); } catch(e){}
-        }
-        basicIO.write(JSON.stringify({ answer: "Timeline retrieved.", data: { Timeline: tracked }, query_count: 0 }));
-      } catch (e) {
-        basicIO.write(JSON.stringify({ answer: "Failed to fetch timeline: " + e.message, data: null, query_count: 0 }));
-      }
-      return context.close();
-    }
-
-    // 5. Case Similarity Matcher
+    
+    // ACTION_FIND_SIMILAR_
     if (question.startsWith('ACTION_FIND_SIMILAR_')) {
       const firNum = question.replace('ACTION_FIND_SIMILAR_', '');
       try {
-        const sourceFirRows = await zcql.executeZCQLQuery(`SELECT * FROM FIR WHERE fir_number = '${firNum}'`);
-        if (!sourceFirRows || sourceFirRows.length === 0) throw new Error("Source FIR not found");
-        const sourceFir = sourceFirRows[0].FIR;
+        const baseSelect = `SELECT CaseMaster.ROWID, CaseMaster.CrimeNo, CaseMaster.CaseNo, CaseMaster.CrimeRegisteredDate, CaseMaster.IncidentFromDate, CaseMaster.latitude, CaseMaster.longitude, CaseMaster.BriefFacts, Unit.UnitName, District.DistrictName, CrimeSubHead.CrimeHeadName, CrimeHead.CrimeGroupName, CaseStatusMaster.CaseStatusName, GravityOffence.LookupValue FROM CaseMaster INNER JOIN CrimeSubHead ON CaseMaster.CrimeMinorHeadID = CrimeSubHead.ROWID INNER JOIN CrimeHead ON CaseMaster.CrimeMajorHeadID = CrimeHead.ROWID INNER JOIN Unit ON CaseMaster.PoliceStationID = Unit.ROWID INNER JOIN District ON Unit.DistrictID = District.ROWID INNER JOIN CaseStatusMaster ON CaseMaster.CaseStatusID = CaseStatusMaster.ROWID INNER JOIN GravityOffence ON CaseMaster.GravityOffenceID = GravityOffence.ROWID`;
+        const sourceFirRows = await zcql.executeZCQLQuery(`${baseSelect} WHERE CaseMaster.CrimeNo = '${firNum}'`);
+        if (!sourceFirRows || sourceFirRows.length === 0) throw new Error("Source Case not found");
+        const flatSource = {};
+        Object.keys(sourceFirRows[0]).forEach(t => Object.assign(flatSource, sourceFirRows[0][t]));
         
-        const similarRows = await zcql.executeZCQLQuery(`SELECT * FROM FIR WHERE crime_type = '${sourceFir.crime_type}' AND status = 'Open' AND ROWID != ${sourceFir.ROWID} LIMIT 10`);
-        const mappedSimilar = similarRows.map(r => r.FIR).map(f => ({
-          ...f,
-          similarityScore: (f.district === sourceFir.district ? 50 : 0) + 50
-        })).sort((a,b) => b.similarityScore - a.similarityScore);
+        const similarRows = await zcql.executeZCQLQuery(`${baseSelect} WHERE CrimeSubHead.CrimeHeadName = '${flatSource.CrimeHeadName}' AND CaseStatusMaster.CaseStatusName = 'Open' LIMIT 10`);
+        const mappedSimilar = similarRows.map(r => {
+           const flat = {};
+           Object.keys(r).forEach(table => Object.assign(flat, r[table]));
+           return {
+              ...flat,
+              similarityScore: (flat.DistrictName === flatSource.DistrictName ? 50 : 0) + 50
+           };
+        }).filter(f => f.CrimeNo !== flatSource.CrimeNo).sort((a,b) => b.similarityScore - a.similarityScore);
 
         basicIO.write(JSON.stringify({ answer: `Found ${mappedSimilar.length} similar cases.`, data: { SimilarCases: mappedSimilar }, query_count: 2 }));
       } catch (e) {
@@ -298,39 +196,30 @@ module.exports = async (context, basicIO) => {
       return context.close();
     }
 
-    // 6. AI-Generated Case Narrative
     if (question.startsWith('ACTION_GENERATE_NARRATIVE_FIR_')) {
       const firNum = question.replace('ACTION_GENERATE_NARRATIVE_FIR_', '');
       try {
-        const firRows = await zcql.executeZCQLQuery(`SELECT * FROM FIR WHERE fir_number = '${firNum}'`);
+        const baseSelect = `SELECT CaseMaster.ROWID, CaseMaster.CrimeNo, CaseMaster.CaseNo, CaseMaster.CrimeRegisteredDate, CaseMaster.IncidentFromDate, CaseMaster.latitude, CaseMaster.longitude, CaseMaster.BriefFacts, Unit.UnitName, District.DistrictName, CrimeSubHead.CrimeHeadName, CrimeHead.CrimeGroupName, CaseStatusMaster.CaseStatusName, GravityOffence.LookupValue FROM CaseMaster INNER JOIN CrimeSubHead ON CaseMaster.CrimeMinorHeadID = CrimeSubHead.ROWID INNER JOIN CrimeHead ON CaseMaster.CrimeMajorHeadID = CrimeHead.ROWID INNER JOIN Unit ON CaseMaster.PoliceStationID = Unit.ROWID INNER JOIN District ON Unit.DistrictID = District.ROWID INNER JOIN CaseStatusMaster ON CaseMaster.CaseStatusID = CaseStatusMaster.ROWID INNER JOIN GravityOffence ON CaseMaster.GravityOffenceID = GravityOffence.ROWID`;
+        const firRows = await zcql.executeZCQLQuery(`${baseSelect} WHERE CaseMaster.CrimeNo = '${firNum}'`);
         if (!firRows || firRows.length === 0) throw new Error("FIR not found");
-        const fir = firRows[0].FIR;
+        
+        let fir = {};
+        Object.keys(firRows[0]).forEach(t => Object.assign(fir, firRows[0][t]));
 
-        const links = await zcql.executeZCQLQuery(`SELECT * FROM CriminalLink WHERE fir_id = ${fir.ROWID} LIMIT 10`);
-        const idSet = new Set();
-        links.forEach(l => {
-          if (l.CriminalLink.accused_id_1) idSet.add(l.CriminalLink.accused_id_1);
-          if (l.CriminalLink.accused_id_2) idSet.add(l.CriminalLink.accused_id_2);
-        });
-        const ids = Array.from(idSet);
-        let accused = [];
-        if (ids.length > 0) {
-          const accusedRows = await zcql.executeZCQLQuery(`SELECT * FROM Accused WHERE ROWID IN (${ids.join(',')})`);
-          accused = accusedRows.map(r => r.Accused);
-        }
+        const accusedRows = await zcql.executeZCQLQuery(`SELECT * FROM Accused WHERE CaseMasterID = ${fir.ROWID}`);
+        let accused = accusedRows.map(r => r.Accused);
 
         const strippedFir = {
-          fir_number: fir.fir_number,
-          crime_type: fir.crime_type,
-          district: fir.district,
-          station: fir.station,
-          date_of_incident: fir.date_of_incident,
-          description: fir.description
+          CrimeNo: fir.CrimeNo,
+          crime_type: fir.CrimeHeadName,
+          district: fir.DistrictName,
+          station: fir.UnitName,
+          date_of_incident: fir.IncidentFromDate,
+          description: fir.BriefFacts
         };
         const strippedAccused = accused.map(a => ({
-          name: a.first_name + ' ' + a.last_name,
-          age: a.age,
-          address: a.address
+          name: a.AccusedName,
+          age: a.AgeYear
         }));
         const rawData = JSON.stringify({ FIR: strippedFir, Accused: strippedAccused });
 
@@ -340,9 +229,9 @@ Format EXACTLY like this:
       OFFICIAL INVESTIGATION REPORT
        Karnataka State Police (KSP)
 ═══════════════════════════════════════════════
-Case: [FIR Number] | [Crime Type] in [District]
-Registered: [Date] | Status: [Status]
-Station: [Station]
+Case: [${fir.CrimeNo}] | [${fir.CrimeHeadName}] in [${fir.DistrictName}]
+Registered: [${fir.CrimeRegisteredDate}] | Status: [${fir.CaseStatusName}]
+Station: [${fir.UnitName}]
 
 INCIDENT SUMMARY:
 [1-2 sentences summarizing the crime]
@@ -372,7 +261,6 @@ DATA: ${rawData}
       return context.close();
     }
 
-    // 7. Translate Narrative to Kannada
     if (question === 'ACTION_TRANSLATE_NARRATIVE_KN') {
       try {
         const historyRaw = basicIO.getArgument('history') || '[]';
@@ -387,7 +275,6 @@ DATA: ${rawData}
       return context.close();
     }
 
-    // 8. Geo-Based Crime Predictor
     if (question.startsWith('ACTION_PREDICT_ESCAPE_ACCUSED_')) {
       const accusedId = question.replace('ACTION_PREDICT_ESCAPE_ACCUSED_', '');
       try {
@@ -395,7 +282,6 @@ DATA: ${rawData}
         if (!accusedRows || accusedRows.length === 0) throw new Error("Accused not found");
         const accused = accusedRows[0].Accused;
 
-        // Simplified logic: Pick 3 districts to simulate AI prediction
         const districts = ['Mysuru', 'Tumakuru', 'Kolar', 'Ramanagara', 'Chikkaballapur', 'Hassan', 'Mandya', 'Chitradurga'];
         const shuffled = districts.sort(() => 0.5 - Math.random());
         const selected = [
@@ -404,7 +290,7 @@ DATA: ${rawData}
           { district: shuffled[2], risk: 'Green', score: Math.floor(Math.random() * (40 - 15 + 1) + 15) }
         ];
 
-        const prompt = `You are a predictive crime AI. The suspect ${accused.first_name} ${accused.last_name} (Age: ${accused.age}) has a high probability of escaping to ${selected[0].district}. Write a 2-sentence rationale explaining why they might go there (e.g. gang connections, avoiding high-security checkpoints).`;
+        const prompt = `You are a predictive crime AI. The suspect ${accused.AccusedName} (Age: ${accused.AgeYear}) has a high probability of escaping to ${selected[0].district}. Write a 2-sentence rationale explaining why they might go there.`;
         const rationale = await callQuickML(app, prompt, []);
 
         basicIO.write(JSON.stringify({ 
@@ -423,13 +309,13 @@ DATA: ${rawData}
     let history = [];
     try {
       history = JSON.parse(historyRaw);
-      history = history.slice(-4); // Reduced from 6 to 4 to save tokens
+      history = history.slice(-4);
     } catch (e) {
       history = [];
     }
 
     const historyText = history.map(h => h.content).join(' ');
-    const { queries: queryPlan, specificFirNumber } = buildQueries(question, historyText);
+    const { queries: queryPlan, specificFirNumber, baseSelect } = buildQueries(question, historyText);
     const results = {};
     const audit_trail = [];
     let resolvedFirId = null;
@@ -438,39 +324,28 @@ DATA: ${rawData}
       try {
         let finalQuery = query;
 
-        if (type === 'FIR' && specificFirNumber) {
+        if (type === 'CaseMaster' && specificFirNumber) {
           try {
             const firRows = await zcql.executeZCQLQuery(query);
-            results.FIR = firRows.map(r => {
+            results.CaseMaster = firRows.map(r => {
               const flat = {};
               Object.keys(r).forEach(table => Object.assign(flat, r[table]));
               return flat;
             });
-            if (results.FIR.length > 0) resolvedFirId = results.FIR[0].ROWID;
-            audit_trail.push({ type: 'FIR (Exact Match)', query });
+            if (results.CaseMaster.length > 0) resolvedFirId = results.CaseMaster[0].ROWID;
+            audit_trail.push({ type: 'CaseMaster (Exact Match)', query });
           } catch (firErr) {
-            results.FIR = [];
+            results.CaseMaster = [];
           }
           continue;
         }
 
-        if (resolveFromLinks && results.CriminalLink) {
-          const idSet = new Set();
-          results.CriminalLink.forEach(l => {
-            if (l.accused_id_1) idSet.add(l.accused_id_1);
-            if (l.accused_id_2) idSet.add(l.accused_id_2);
-          });
-          const ids = Array.from(idSet).slice(0, 20);
-          if (ids.length > 0) {
-            finalQuery = `SELECT * FROM Accused WHERE ROWID IN (${ids.join(',')})`;
-          } else {
-            results[type] = [];
-            continue;
-          }
+        if (resolveFromLinks) {
+            finalQuery = `SELECT * FROM Accused ${resolvedFirId ? `WHERE CaseMasterID = ${resolvedFirId}` : ''} LIMIT 10`;
         }
 
         if (linkToFir && resolvedFirId) {
-          finalQuery = finalQuery.replace('LIMIT 10', '').trim() + ` WHERE fir_id = ${resolvedFirId} LIMIT 10`;
+          finalQuery = finalQuery.replace('LIMIT 10', '').trim() + ` WHERE CaseMasterID = ${resolvedFirId} LIMIT 10`;
         }
 
         const rows = await zcql.executeZCQLQuery(finalQuery);
@@ -482,11 +357,10 @@ DATA: ${rawData}
           return flat;
         });
 
-        // Compute hotspots for early warnings
         if (type === 'PredictiveAlerts') {
           const counts = {};
           results[type].forEach(r => {
-            const key = `${r.district} - ${r.crime_type}`;
+            const key = `${r.DistrictName} - ${r.CrimeHeadName}`;
             counts[key] = (counts[key] || 0) + 1;
           });
           const alerts = Object.entries(counts)
@@ -507,12 +381,12 @@ DATA: ${rawData}
       }
     }
 
-    if (results.FIR && results.FIR.length === 0) {
+    if (results.CaseMaster && results.CaseMaster.length === 0) {
       try {
-        const fallbackQuery = 'SELECT * FROM FIR LIMIT 10';
+        const fallbackQuery = `${baseSelect} LIMIT 10`;
         const fallbackRows = await zcql.executeZCQLQuery(fallbackQuery);
-        audit_trail.push({ type: 'FIR (Fallback Sample)', query: fallbackQuery });
-        results.FIR = fallbackRows.map(r => {
+        audit_trail.push({ type: 'CaseMaster (Fallback Sample)', query: fallbackQuery });
+        results.CaseMaster = fallbackRows.map(r => {
           const flat = {};
           Object.keys(r).forEach(table => Object.assign(flat, r[table]));
           return flat;
@@ -525,13 +399,11 @@ DATA: ${rawData}
       .filter(([k]) => k !== '_note')
       .map(([type, rows]) => {
         if (!rows || !rows.length) return '';
-        // Limit data sent to Groq to avoid huge prompts
         const sample = rows.slice(0, 8);
         return `## ${type} (${rows.length} records):\n${JSON.stringify(sample, null, 1)}`;
       })
       .filter(Boolean)
       .join('\n\n');
-
 
     let prompt = `Answer the investigator's question based on the database data below. Be concise (under 150 words).
 

@@ -42,10 +42,10 @@ export default function NetworkGraph({ accused, links }) {
     accused.forEach((a) => {
       nodeMap.set(String(a.ROWID), {
         id: String(a.ROWID),
-        name: a.name || 'Unknown',
-        age: a.age,
-        gender: a.gender,
-        priorRecord: a.prior_record,
+        name: a.AccusedName || a.name || 'Unknown',
+        age: a.AgeYear || a.age,
+        gender: a.Gender || a.gender,
+        priorRecord: a.ModusOperandi || a.prior_record,
       });
     });
 

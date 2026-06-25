@@ -936,18 +936,40 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {selectedResult.data?.Accused?.length > 0 && selectedResult.data?.CriminalLink?.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Users size={13} className="text-slate-500" />
-                    <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wide">
-                      Criminal Network Graph
-                    </h3>
-                  </div>
-                  <div className="border border-slate-200 rounded-xl bg-white p-1 shadow-sm overflow-hidden">
-                    <NetworkGraph accused={selectedResult.data.Accused} links={selectedResult.data.CriminalLink} />
-                  </div>
-                </div>
+              {selectedResult.data?.Accused?.length > 0 && selectedResult.data?.inv_arrestsurrenderaccused?.length > 0 && (
+                (() => {
+                  const caseToAccused = {};
+                  selectedResult.data.inv_arrestsurrenderaccused.forEach(inv => {
+                    const arrestRecord = (selectedResult.data.ArrestSurrender || []).find(a => String(a.ROWID) === String(inv.ArrestSurrenderID));
+                    if (arrestRecord) {
+                       const caseId = arrestRecord.CaseMasterID;
+                       if (!caseToAccused[caseId]) caseToAccused[caseId] = [];
+                       if (!caseToAccused[caseId].includes(inv.AccusedID)) caseToAccused[caseId].push(inv.AccusedID);
+                    }
+                  });
+                  const links = [];
+                  Object.values(caseToAccused).forEach(accusedGroup => {
+                     for (let i = 0; i < accusedGroup.length; i++) {
+                       for (let j = i + 1; j < accusedGroup.length; j++) {
+                          links.push({ accused_id_1: accusedGroup[i], accused_id_2: accusedGroup[j], link_type: 'prior_co-accused' });
+                       }
+                     }
+                  });
+                  if (links.length === 0) return null;
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Users size={13} className="text-slate-500" />
+                        <h3 className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                          Criminal Network Graph
+                        </h3>
+                      </div>
+                      <div className="border border-slate-200 rounded-xl bg-white p-1 shadow-sm overflow-hidden">
+                        <NetworkGraph accused={selectedResult.data.Accused} links={links} />
+                      </div>
+                    </div>
+                  );
+                })()
               )}
               {Object.entries(selectedResult.data || {})
                 .filter(([key]) => !['_note', 'Alerts', 'Narrative', 'TranslatedNarrative', 'Predictions'].includes(key))
@@ -960,7 +982,7 @@ export default function App() {
                           {type} Database Records ({rows.length})
                         </h3>
                       </div>
-                      {type === 'FIR' && rows.length > 0 && (
+                      {type === 'CaseMaster' && rows.length > 0 && (
                         <div className="flex gap-2">
                           <button onClick={() => batchExportFIRs('CSV', rows)} className="text-[10px] font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 px-2 py-1 rounded">
                             CSV
@@ -997,16 +1019,16 @@ export default function App() {
                                 </div>
                               );
                             })}
-                          {type === 'FIR' && !row.similarityScore && (
+                          {type === 'CaseMaster' && !row.similarityScore && (
                             <div className="mt-3 pt-3 border-t border-slate-100 flex justify-end gap-2">
                               <button 
-                                onClick={() => sendQuery(`ACTION_GENERATE_NARRATIVE_FIR_${row.fir_number}`)}
+                                onClick={() => sendQuery(`ACTION_GENERATE_NARRATIVE_FIR_${row.CrimeNo}`)}
                                 className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded transition-colors"
                               >
                                 Generate Case Report 📖
                               </button>
                               <button 
-                                onClick={() => sendQuery(`ACTION_FIND_SIMILAR_${row.fir_number}`)}
+                                onClick={() => sendQuery(`ACTION_FIND_SIMILAR_${row.CrimeNo}`)}
                                 className="text-xs font-bold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded transition-colors"
                               >
                                 Find Similar Cases 🔎
