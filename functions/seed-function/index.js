@@ -12,6 +12,16 @@ module.exports = async (context, basicIO) => {
   }
   const batch = parseInt(batchStr, 10);
 
+  if (batch === 99) {
+    try {
+      const tables = await datastore.getAllTables();
+      basicIO.write(JSON.stringify({ tables: tables.map(t => t.tableName) }));
+    } catch (e) {
+      basicIO.write(JSON.stringify({ error: e.message }));
+    }
+    return context.close();
+  }
+
   const TABLES = {
     Victim: datastore.table('Victim'),
     Accused: datastore.table('Accused'),
@@ -40,11 +50,10 @@ module.exports = async (context, basicIO) => {
         }
       };
 
-      // 1. Cleanup in reverse order
+      // 1. Cleanup in reverse order (Only the 10 tables)
       const cleanupOrder = [
         'Victim', 'Accused', 'inv_arrestsurrenderaccused', 'ArrestSurrender', 
-        'CaseMaster', 'CaseStatusMaster', 'GravityOffence', 'Unit', 'District', 
-        'CrimeSubHead', 'CrimeHead', 'CaseCategory', 'State'
+        'CaseMaster', 'CrimeSubHead', 'CrimeHead', 'GravityOffence', 'CaseStatusMaster', 'Unit', 'District'
       ];
       for (const t of cleanupOrder) {
         try {
@@ -55,11 +64,7 @@ module.exports = async (context, basicIO) => {
       }
 
       try {
-        // 2. Seed State
-        const stateRow = await safeInsert('State', { StateName: 'Karnataka', NationalityID: 1, Active: true });
-        const stateId = stateRow.ROWID;
-
-        // 3. Seed Districts & Units
+        // 2. Seed Districts & Units (No StateID)
         const districtNames = [
           'Bengaluru Urban', 'Bengaluru Rural', 'Mysuru', 'Mangaluru', 
           'Hubballi-Dharwad', 'Belagavi', 'Kalaburagi', 'Davanagere', 
@@ -68,7 +73,7 @@ module.exports = async (context, basicIO) => {
         const districts = [];
         const units = [];
         for (const dName of districtNames) {
-          const dRow = await safeInsert('District', { DistrictName: dName, StateID: stateId, Active: true });
+          const dRow = await safeInsert('District', { DistrictName: dName, Active: true });
           districts.push(dRow);
           
           const unitSuffixes = dName === 'Bengaluru Urban' 
@@ -80,7 +85,6 @@ module.exports = async (context, basicIO) => {
           for (const uName of unitSuffixes) {
             const uRow = await safeInsert('Unit', {
               UnitName: uName,
-              StateID: stateId,
               DistrictID: dRow.ROWID,
               Active: true
             });
@@ -88,7 +92,7 @@ module.exports = async (context, basicIO) => {
           }
         }
 
-        // 4. Seed CrimeHeads & CrimeSubHeads
+        // 3. Seed CrimeHeads & CrimeSubHeads
         const crimeStructure = {
           'Crimes Against Body': ['Murder (IPC 302)', 'Assault (IPC 323)', 'Kidnapping (IPC 363)'],
           'Crimes Against Property': ['Theft (IPC 379)', 'Burglary (IPC 457)', 'Robbery (IPC 392)'],
@@ -104,20 +108,15 @@ module.exports = async (context, basicIO) => {
           }
         }
 
-        // 5. Seed GravityOffence
+        // 4. Seed GravityOffence
         await safeInsert('GravityOffence', { LookupValue: 'Heinous' });
         await safeInsert('GravityOffence', { LookupValue: 'Non-Heinous' });
 
-        // 6. Seed CaseStatusMaster
+        // 5. Seed CaseStatusMaster
         const statuses = ['Under Investigation', 'Chargesheeted', 'Closed', 'Acquitted', 'Pending Trial'];
         for (const st of statuses) {
           await safeInsert('CaseStatusMaster', { CaseStatusName: st });
         }
-
-        // 7. Seed CaseCategory
-        await safeInsert('CaseCategory', { LookupValue: 'FIR' });
-        await safeInsert('CaseCategory', { LookupValue: 'UDR' });
-        await safeInsert('CaseCategory', { LookupValue: 'Zero FIR' });
 
         basicIO.write(JSON.stringify({ success: true, message: "Batch 0 completed. Lookups seeded." }));
       } catch (insertErr) {
@@ -131,10 +130,9 @@ module.exports = async (context, basicIO) => {
         return res.map(r => r[table]);
       };
       
-      const [districts, units, categories, statuses, gravity, crimeSubHeads] = await Promise.all([
+      const [districts, units, statuses, gravity, crimeSubHeads] = await Promise.all([
         loadLookup('District'),
         loadLookup('Unit'),
-        loadLookup('CaseCategory'),
         loadLookup('CaseStatusMaster'),
         loadLookup('GravityOffence'),
         loadLookup('CrimeSubHead')
@@ -157,14 +155,14 @@ module.exports = async (context, basicIO) => {
 
       try {
         for (let i = 0; i < numCases; i++) {
-          const cat = getRnd(categories);
           const unit = getRnd(units);
           const dist = districts.find(d => String(d.ROWID) === String(unit.DistrictID)) || getRnd(districts);
           const year = 2020 + Math.floor(Math.random() * 7);
           const serial = (batch * 20) + i + 1;
           
           const pad = (num, size) => ('000000000' + num).substr(-size);
-          const crimeNo = `${cat.ROWID.toString().substr(0,1)}${pad(dist.ROWID, 4)}${pad(unit.ROWID, 4)}${year}${pad(serial, 5)}`;
+          // Omit CategoryID since it's skipped. Just use 1 for the first digit.
+          const crimeNo = `1${pad(dist.ROWID, 4)}${pad(unit.ROWID, 4)}${year}${pad(serial, 5)}`;
           
           const subHead = getRnd(crimeSubHeads);
           const stat = getRnd(statuses);
