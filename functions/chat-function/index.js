@@ -55,7 +55,7 @@ async function callQuickML(app, prompt, history = []) {
   }
 }
 
-function buildQueries(question, historyText = '') {
+async function buildQueries(zcql, question, historyText = '') {
   const q = question.toLowerCase();
   const queries = [];
 
@@ -89,20 +89,42 @@ function buildQueries(question, historyText = '') {
 
   let firWhere = [];
   if (specificFirNumber) {
-    firWhere.push(`CaseMaster.CrimeNo = '${specificFirNumber}'`);
+    firWhere.push(`CrimeNo = '${specificFirNumber}'`);
   } else {
+    // Note: since we map in JS, we can't filter on District/Crime directly via ZCQL easily unless we lookup the IDs first.
+    // Let's resolve the IDs for filtering:
     if (foundDistrict) {
       const capitalized = foundDistrict.charAt(0).toUpperCase() + foundDistrict.slice(1);
-      firWhere.push(`District.DistrictName = '${capitalized}'`);
+      const dRows = await zcql.executeZCQLQuery(`SELECT ROWID FROM District WHERE DistrictName LIKE '%${capitalized}%'`);
+      if (dRows.length) {
+        const dIds = dRows.map(d => d.District.ROWID).join(',');
+        const uRows = await zcql.executeZCQLQuery(`SELECT ROWID FROM Unit WHERE DistrictID IN (${dIds})`);
+        if (uRows.length) {
+          const uIds = uRows.map(u => u.Unit.ROWID).join(',');
+          firWhere.push(`PoliceStationID IN (${uIds})`);
+        } else {
+          firWhere.push(`PoliceStationID = -1`); // Force empty if no units found
+        }
+      } else {
+        firWhere.push(`PoliceStationID = -1`); // Force empty if no district found
+      }
     }
-    if (foundCrime) firWhere.push(`CrimeSubHead.CrimeHeadName = '${foundCrime[1]}'`);
-    if (foundYear) firWhere.push(`CaseMaster.CrimeRegisteredDate LIKE '${foundYear}%'`);
-    if (isStatusQuery && q.includes('open')) firWhere.push(`CaseStatusMaster.CaseStatusName = 'Open'`);
-    if (isStatusQuery && q.includes('closed')) firWhere.push(`CaseStatusMaster.CaseStatusName = 'Closed'`);
+    if (foundCrime) {
+      const cRows = await zcql.executeZCQLQuery(`SELECT ROWID FROM CrimeSubHead WHERE CrimeHeadName = '${foundCrime[1]}'`);
+      if (cRows.length) firWhere.push(`CrimeMinorHeadID = ${cRows[0].CrimeSubHead.ROWID}`);
+    }
+    if (foundYear) firWhere.push(`CrimeRegisteredDate LIKE '${foundYear}%'`);
+    if (isStatusQuery && q.includes('open')) {
+      const sRows = await zcql.executeZCQLQuery(`SELECT ROWID FROM CaseStatusMaster WHERE CaseStatusName = 'Open'`);
+      if (sRows.length) firWhere.push(`CaseStatusID = ${sRows[0].CaseStatusMaster.ROWID}`);
+    }
+    if (isStatusQuery && q.includes('closed')) {
+      const sRows = await zcql.executeZCQLQuery(`SELECT ROWID FROM CaseStatusMaster WHERE CaseStatusName = 'Closed'`);
+      if (sRows.length) firWhere.push(`CaseStatusID = ${sRows[0].CaseStatusMaster.ROWID}`);
+    }
   }
 
-  const baseSelect = `SELECT CaseMaster.ROWID, CaseMaster.CrimeNo, CaseMaster.CaseNo, CaseMaster.CrimeRegisteredDate, CaseMaster.IncidentFromDate, CaseMaster.latitude, CaseMaster.longitude, CaseMaster.BriefFacts, Unit.UnitName, District.DistrictName, CrimeSubHead.CrimeHeadName, CrimeHead.CrimeGroupName, CaseStatusMaster.CaseStatusName, GravityOffence.LookupValue FROM CaseMaster INNER JOIN CrimeSubHead ON CaseMaster.CrimeMinorHeadID = CrimeSubHead.ROWID INNER JOIN CrimeHead ON CaseMaster.CrimeMajorHeadID = CrimeHead.ROWID INNER JOIN Unit ON CaseMaster.PoliceStationID = Unit.ROWID INNER JOIN District ON Unit.DistrictID = District.ROWID INNER JOIN CaseStatusMaster ON CaseMaster.CaseStatusID = CaseStatusMaster.ROWID INNER JOIN GravityOffence ON CaseMaster.GravityOffenceID = GravityOffence.ROWID`;
-
+  const baseSelect = `SELECT * FROM CaseMaster`;
   const firQuery = `${baseSelect} ${firWhere.length ? 'WHERE ' + firWhere.join(' AND ') : ''} LIMIT 15`;
   queries.push({ type: 'CaseMaster', query: firQuery });
 
@@ -133,12 +155,66 @@ module.exports = async (context, basicIO) => {
 
   let question = '';
 
+  const fetchLookups = async () => {
+    const [dRows, uRows, sRows, gRows, stRows] = await Promise.all([
+      zcql.executeZCQLQuery('SELECT ROWID, DistrictName FROM District'),
+      zcql.executeZCQLQuery('SELECT ROWID, UnitName, DistrictID FROM Unit'),
+      zcql.executeZCQLQuery('SELECT ROWID, CrimeHeadName FROM CrimeSubHead'),
+      zcql.executeZCQLQuery('SELECT ROWID, CrimeGroupName FROM CrimeHead'),
+      zcql.executeZCQLQuery('SELECT ROWID, CaseStatusName FROM CaseStatusMaster')
+    ]);
+    return { dRows, uRows, sRows, gRows, stRows };
+  };
+
+  const lookup = (arr, table, keyCol, id) => {
+     if (!arr) return 'Unknown';
+     const row = arr.find(r => r[table].ROWID == id);
+     return row ? row[table][keyCol] : 'Unknown';
+  };
+
+  const mapCases = (rows, lookups) => {
+    if (!rows) return [];
+    const { dRows, uRows, sRows, gRows, stRows } = lookups;
+    return rows.map(r => {
+      const flat = r.CaseMaster || r; // Handle both wrapped and unwrapped CaseMaster
+      return {
+        ...flat,
+        DistrictName: lookup(dRows, 'District', 'DistrictName', lookup(uRows, 'Unit', 'DistrictID', flat.PoliceStationID) || -1) !== 'Unknown' ? lookup(dRows, 'District', 'DistrictName', uRows.find(u => u.Unit.ROWID == flat.PoliceStationID)?.Unit?.DistrictID) : 'Unknown',
+        UnitName: lookup(uRows, 'Unit', 'UnitName', flat.PoliceStationID),
+        CrimeHeadName: lookup(sRows, 'CrimeSubHead', 'CrimeHeadName', flat.CrimeMinorHeadID),
+        CrimeGroupName: lookup(gRows, 'CrimeHead', 'CrimeGroupName', flat.CrimeMajorHeadID),
+        CaseStatusName: lookup(stRows, 'CaseStatusMaster', 'CaseStatusName', flat.CaseStatusID)
+      };
+    });
+  };
+
   try {
     const qParam = basicIO.getArgument('q');
     question = typeof qParam === 'string' ? qParam : (qParam?.q || qParam?.question || '');
 
     if (question && question.startsWith('SEED_DATABASE_NOW_BATCH_')) {
-      return require('../seed-function/index')(context, basicIO);
+      try {
+        return new Promise((resolve) => {
+          const req = https.request('https://crimeiq-60074288350.development.catalystserverless.in/server/seed-function/execute', { method: 'GET' }, (res) => {
+             let data = '';
+             res.on('data', chunk => data += chunk);
+             res.on('end', () => {
+               basicIO.write(JSON.stringify({ answer: "Database seeded successfully!", data: null, query_count: 0 }));
+               context.close();
+               resolve();
+             });
+          });
+          req.on('error', (e) => {
+             basicIO.write(JSON.stringify({ answer: "Failed to seed database: " + e.message, data: null, query_count: 0 }));
+             context.close();
+             resolve();
+          });
+          req.end();
+        });
+      } catch (e) {
+        basicIO.write(JSON.stringify({ answer: "Failed to trigger seed: " + e.message, data: null, query_count: 0 }));
+        return context.close();
+      }
     }
 
     const userEmail = basicIO.getArgument('email') || 'unknown';
@@ -149,9 +225,7 @@ module.exports = async (context, basicIO) => {
       try {
         const baseSelect = `SELECT CaseMaster.ROWID, CaseMaster.CrimeNo, CaseMaster.CaseNo, CaseMaster.CrimeRegisteredDate, CaseMaster.IncidentFromDate, CaseMaster.latitude, CaseMaster.longitude, CaseMaster.BriefFacts, Unit.UnitName, District.DistrictName, CrimeSubHead.CrimeHeadName, CrimeHead.CrimeGroupName, CaseStatusMaster.CaseStatusName, GravityOffence.LookupValue FROM CaseMaster INNER JOIN CrimeSubHead ON CaseMaster.CrimeMinorHeadID = CrimeSubHead.ROWID INNER JOIN CrimeHead ON CaseMaster.CrimeMajorHeadID = CrimeHead.ROWID INNER JOIN Unit ON CaseMaster.PoliceStationID = Unit.ROWID INNER JOIN District ON Unit.DistrictID = District.ROWID INNER JOIN CaseStatusMaster ON CaseMaster.CaseStatusID = CaseStatusMaster.ROWID INNER JOIN GravityOffence ON CaseMaster.GravityOffenceID = GravityOffence.ROWID LIMIT 200`;
         const rows = await zcql.executeZCQLQuery(baseSelect);
-        const mapFIRs = rows.map(r => {
-          const flat = {};
-          Object.keys(r).forEach(table => Object.assign(flat, r[table]));
+        const mapFIRs = mapCases(rows, lookups).map(flat => {
           return {
             fir_number: flat.CrimeNo,
             crime_type: flat.CrimeHeadName,
@@ -173,16 +247,15 @@ module.exports = async (context, basicIO) => {
     if (question.startsWith('ACTION_FIND_SIMILAR_')) {
       const firNum = question.replace('ACTION_FIND_SIMILAR_', '');
       try {
-        const baseSelect = `SELECT CaseMaster.ROWID, CaseMaster.CrimeNo, CaseMaster.CaseNo, CaseMaster.CrimeRegisteredDate, CaseMaster.IncidentFromDate, CaseMaster.latitude, CaseMaster.longitude, CaseMaster.BriefFacts, Unit.UnitName, District.DistrictName, CrimeSubHead.CrimeHeadName, CrimeHead.CrimeGroupName, CaseStatusMaster.CaseStatusName, GravityOffence.LookupValue FROM CaseMaster INNER JOIN CrimeSubHead ON CaseMaster.CrimeMinorHeadID = CrimeSubHead.ROWID INNER JOIN CrimeHead ON CaseMaster.CrimeMajorHeadID = CrimeHead.ROWID INNER JOIN Unit ON CaseMaster.PoliceStationID = Unit.ROWID INNER JOIN District ON Unit.DistrictID = District.ROWID INNER JOIN CaseStatusMaster ON CaseMaster.CaseStatusID = CaseStatusMaster.ROWID INNER JOIN GravityOffence ON CaseMaster.GravityOffenceID = GravityOffence.ROWID`;
-        const sourceFirRows = await zcql.executeZCQLQuery(`${baseSelect} WHERE CaseMaster.CrimeNo = '${firNum}'`);
+        const baseSelect = `SELECT * FROM CaseMaster`;
+        const sourceFirRows = await zcql.executeZCQLQuery(`${baseSelect} WHERE CrimeNo = '${firNum}'`);
         if (!sourceFirRows || sourceFirRows.length === 0) throw new Error("Source Case not found");
-        const flatSource = {};
-        Object.keys(sourceFirRows[0]).forEach(t => Object.assign(flatSource, sourceFirRows[0][t]));
         
-        const similarRows = await zcql.executeZCQLQuery(`${baseSelect} WHERE CrimeSubHead.CrimeHeadName = '${flatSource.CrimeHeadName}' AND CaseStatusMaster.CaseStatusName = 'Open' LIMIT 10`);
-        const mappedSimilar = similarRows.map(r => {
-           const flat = {};
-           Object.keys(r).forEach(table => Object.assign(flat, r[table]));
+        const lookups = await fetchLookups();
+        const flatSource = mapCases(sourceFirRows, lookups)[0];
+        
+        const similarRows = await zcql.executeZCQLQuery(`${baseSelect} WHERE CrimeMinorHeadID = ${sourceFirRows[0].CaseMaster.CrimeMinorHeadID} AND CaseStatusID = ${sourceFirRows[0].CaseMaster.CaseStatusID} LIMIT 10`);
+        const mappedSimilar = mapCases(similarRows, lookups).map(flat => {
            return {
               ...flat,
               similarityScore: (flat.DistrictName === flatSource.DistrictName ? 50 : 0) + 50
@@ -199,12 +272,12 @@ module.exports = async (context, basicIO) => {
     if (question.startsWith('ACTION_GENERATE_NARRATIVE_FIR_')) {
       const firNum = question.replace('ACTION_GENERATE_NARRATIVE_FIR_', '');
       try {
-        const baseSelect = `SELECT CaseMaster.ROWID, CaseMaster.CrimeNo, CaseMaster.CaseNo, CaseMaster.CrimeRegisteredDate, CaseMaster.IncidentFromDate, CaseMaster.latitude, CaseMaster.longitude, CaseMaster.BriefFacts, Unit.UnitName, District.DistrictName, CrimeSubHead.CrimeHeadName, CrimeHead.CrimeGroupName, CaseStatusMaster.CaseStatusName, GravityOffence.LookupValue FROM CaseMaster INNER JOIN CrimeSubHead ON CaseMaster.CrimeMinorHeadID = CrimeSubHead.ROWID INNER JOIN CrimeHead ON CaseMaster.CrimeMajorHeadID = CrimeHead.ROWID INNER JOIN Unit ON CaseMaster.PoliceStationID = Unit.ROWID INNER JOIN District ON Unit.DistrictID = District.ROWID INNER JOIN CaseStatusMaster ON CaseMaster.CaseStatusID = CaseStatusMaster.ROWID INNER JOIN GravityOffence ON CaseMaster.GravityOffenceID = GravityOffence.ROWID`;
-        const firRows = await zcql.executeZCQLQuery(`${baseSelect} WHERE CaseMaster.CrimeNo = '${firNum}'`);
+        const baseSelect = `SELECT * FROM CaseMaster`;
+        const firRows = await zcql.executeZCQLQuery(`${baseSelect} WHERE CrimeNo = '${firNum}'`);
         if (!firRows || firRows.length === 0) throw new Error("FIR not found");
         
-        let fir = {};
-        Object.keys(firRows[0]).forEach(t => Object.assign(fir, firRows[0][t]));
+        const lookups = await fetchLookups();
+        let fir = mapCases(firRows, lookups)[0];
 
         const accusedRows = await zcql.executeZCQLQuery(`SELECT * FROM Accused WHERE CaseMasterID = ${fir.ROWID}`);
         let accused = accusedRows.map(r => r.Accused);
@@ -315,7 +388,7 @@ DATA: ${rawData}
     }
 
     const historyText = history.map(h => h.content).join(' ');
-    const { queries: queryPlan, specificFirNumber, baseSelect } = buildQueries(question, historyText);
+    const { queries: queryPlan, specificFirNumber, baseSelect } = await buildQueries(zcql, question, historyText);
     const results = {};
     const audit_trail = [];
     let resolvedFirId = null;
@@ -377,6 +450,7 @@ DATA: ${rawData}
 
       } catch (e) {
         results[type] = [];
+        results._note = (results._note || '') + ` Error in ${type}: ${e.message}. `;
         console.error(`Query failed for ${type}: ${e.message}`);
       }
     }
@@ -392,7 +466,19 @@ DATA: ${rawData}
           return flat;
         });
         results._note = 'No exact match found — showing a general sample instead.';
-      } catch (e) {}
+      } catch (e) {
+        results._note = (results._note || '') + ` Fallback Error: ${e.message}. `;
+      }
+    }
+
+    // MAP LOOKUPS IN JAVASCRIPT TO BYPASS ZCQL JOIN LIMITATIONS
+    try {
+      const lookups = await fetchLookups();
+      
+      if (results.CaseMaster) results.CaseMaster = mapCases(results.CaseMaster, lookups);
+      if (results.PredictiveAlerts) results.PredictiveAlerts = mapCases(results.PredictiveAlerts, lookups);
+    } catch(e) {
+      console.error('Failed to map lookups:', e);
     }
 
     const dataContext = Object.entries(results)
