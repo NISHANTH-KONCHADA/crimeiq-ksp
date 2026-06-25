@@ -248,12 +248,31 @@ module.exports = async (context, basicIO) => {
 
     // ACTION_GET_TIMELINE
     if (question === 'ACTION_GET_TIMELINE') {
-      const mockTimeline = [
-        { timestamp: new Date().toISOString(), officer: userEmail, query: "System Login" },
-        { timestamp: new Date(Date.now() - 3600000).toISOString(), officer: "system_admin", query: "Nightly Threat Scan" },
-        { timestamp: new Date(Date.now() - 7200000).toISOString(), officer: "inspector_rao", query: "Searched for: 'recent theft in Bengaluru'" }
+      try {
+        const rows = await zcql.executeZCQLQuery(`SELECT * FROM CaseMaster LIMIT 5`);
+        const timelineFirs = rows.map(r => r.CaseMaster.CrimeNo);
+        basicIO.write(JSON.stringify({ answer: "Timeline fetched", data: { Timeline: timelineFirs }, query_count: 0 }));
+      } catch(e) {
+        basicIO.write(JSON.stringify({ answer: "Failed timeline: " + e.message, data: null, query_count: 0 }));
+      }
+      return context.close();
+    }
+
+    // ACTION_TRACK_FIR_
+    if (question.startsWith('ACTION_TRACK_FIR_')) {
+      const firNum = question.replace('ACTION_TRACK_FIR_', '');
+      basicIO.write(JSON.stringify({ answer: `FIR ${firNum} tracked.`, data: null, query_count: 0 }));
+      return context.close();
+    }
+
+    // ACTION_GET_AUDIT_LOGS
+    if (question === 'ACTION_GET_AUDIT_LOGS') {
+      const mockAuditLogs = [
+        { CREATEDTIME: new Date().toISOString(), user_email: userEmail, details: "System Login" },
+        { CREATEDTIME: new Date(Date.now() - 3600000).toISOString(), user_email: "system_admin", details: "Nightly Threat Scan" },
+        { CREATEDTIME: new Date(Date.now() - 7200000).toISOString(), user_email: "inspector_rao", details: "Searched for: 'recent theft in Bengaluru'" }
       ];
-      basicIO.write(JSON.stringify({ answer: "Timeline fetched", data: { Timeline: mockTimeline }, query_count: 0 }));
+      basicIO.write(JSON.stringify({ answer: "Audit logs fetched", data: { AuditLogs: mockAuditLogs }, query_count: 0 }));
       return context.close();
     }
     
