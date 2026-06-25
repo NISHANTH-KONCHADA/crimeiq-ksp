@@ -4,7 +4,8 @@
       "seed-function",
       "chat-function",
       "role-function",
-      "threat-cron-function"
+      "threat-cron-function",
+      "test-function"
     ],
     "ignore": [],
     "source": "functions"

@@ -177,9 +177,11 @@ module.exports = async (context, basicIO) => {
     const { dRows, uRows, sRows, gRows, stRows } = lookups;
     return rows.map(r => {
       const flat = r.CaseMaster || r; // Handle both wrapped and unwrapped CaseMaster
+      const unitRow = uRows.find(u => u.Unit.ROWID == flat.PoliceStationID);
+      const districtId = unitRow ? unitRow.Unit.DistrictID : null;
       return {
         ...flat,
-        DistrictName: lookup(dRows, 'District', 'DistrictName', lookup(uRows, 'Unit', 'DistrictID', flat.PoliceStationID) || -1) !== 'Unknown' ? lookup(dRows, 'District', 'DistrictName', uRows.find(u => u.Unit.ROWID == flat.PoliceStationID)?.Unit?.DistrictID) : 'Unknown',
+        DistrictName: districtId ? lookup(dRows, 'District', 'DistrictName', districtId) : 'Unknown',
         UnitName: lookup(uRows, 'Unit', 'UnitName', flat.PoliceStationID),
         CrimeHeadName: lookup(sRows, 'CrimeSubHead', 'CrimeHeadName', flat.CrimeMinorHeadID),
         CrimeGroupName: lookup(gRows, 'CrimeHead', 'CrimeGroupName', flat.CrimeMajorHeadID),
@@ -223,8 +225,9 @@ module.exports = async (context, basicIO) => {
     // ACTION_GET_MAP_DATA
     if (question === 'ACTION_GET_MAP_DATA') {
       try {
-        const baseSelect = `SELECT CaseMaster.ROWID, CaseMaster.CrimeNo, CaseMaster.CaseNo, CaseMaster.CrimeRegisteredDate, CaseMaster.IncidentFromDate, CaseMaster.latitude, CaseMaster.longitude, CaseMaster.BriefFacts, Unit.UnitName, District.DistrictName, CrimeSubHead.CrimeHeadName, CrimeHead.CrimeGroupName, CaseStatusMaster.CaseStatusName, GravityOffence.LookupValue FROM CaseMaster INNER JOIN CrimeSubHead ON CaseMaster.CrimeMinorHeadID = CrimeSubHead.ROWID INNER JOIN CrimeHead ON CaseMaster.CrimeMajorHeadID = CrimeHead.ROWID INNER JOIN Unit ON CaseMaster.PoliceStationID = Unit.ROWID INNER JOIN District ON Unit.DistrictID = District.ROWID INNER JOIN CaseStatusMaster ON CaseMaster.CaseStatusID = CaseStatusMaster.ROWID INNER JOIN GravityOffence ON CaseMaster.GravityOffenceID = GravityOffence.ROWID LIMIT 200`;
+        const baseSelect = `SELECT * FROM CaseMaster LIMIT 200`;
         const rows = await zcql.executeZCQLQuery(baseSelect);
+        const lookups = await fetchLookups();
         const mapFIRs = mapCases(rows, lookups).map(flat => {
           return {
             fir_number: flat.CrimeNo,
@@ -240,6 +243,17 @@ module.exports = async (context, basicIO) => {
       } catch (e) {
         basicIO.write(JSON.stringify({ answer: "Failed map: " + e.message, data: null, query_count: 0 }));
       }
+      return context.close();
+    }
+
+    // ACTION_GET_TIMELINE
+    if (question === 'ACTION_GET_TIMELINE') {
+      const mockTimeline = [
+        { timestamp: new Date().toISOString(), officer: userEmail, query: "System Login" },
+        { timestamp: new Date(Date.now() - 3600000).toISOString(), officer: "system_admin", query: "Nightly Threat Scan" },
+        { timestamp: new Date(Date.now() - 7200000).toISOString(), officer: "inspector_rao", query: "Searched for: 'recent theft in Bengaluru'" }
+      ];
+      basicIO.write(JSON.stringify({ answer: "Timeline fetched", data: { Timeline: mockTimeline }, query_count: 0 }));
       return context.close();
     }
     
@@ -430,24 +444,6 @@ DATA: ${rawData}
           return flat;
         });
 
-        if (type === 'PredictiveAlerts') {
-          const counts = {};
-          results[type].forEach(r => {
-            const key = `${r.DistrictName} - ${r.CrimeHeadName}`;
-            counts[key] = (counts[key] || 0) + 1;
-          });
-          const alerts = Object.entries(counts)
-            .filter(([k, count]) => count >= 3)
-            .map(([k, count]) => ({ severity: 'High', alert: `Crime Spike: ${count} recent incidents of ${k.split(' - ')[1]} detected in ${k.split(' - ')[0]}` }));
-
-          if (alerts.length > 0) {
-            results['Alerts'] = alerts;
-          } else {
-            results._note = (results._note || '') + ' No significant crime spikes detected currently.';
-          }
-          delete results['PredictiveAlerts'];
-        }
-
       } catch (e) {
         results[type] = [];
         results._note = (results._note || '') + ` Error in ${type}: ${e.message}. `;
@@ -476,7 +472,24 @@ DATA: ${rawData}
       const lookups = await fetchLookups();
       
       if (results.CaseMaster) results.CaseMaster = mapCases(results.CaseMaster, lookups);
-      if (results.PredictiveAlerts) results.PredictiveAlerts = mapCases(results.PredictiveAlerts, lookups);
+      if (results.PredictiveAlerts) {
+        results.PredictiveAlerts = mapCases(results.PredictiveAlerts, lookups);
+        const counts = {};
+        results.PredictiveAlerts.forEach(r => {
+          const key = `${r.DistrictName} - ${r.CrimeHeadName}`;
+          counts[key] = (counts[key] || 0) + 1;
+        });
+        const alerts = Object.entries(counts)
+          .filter(([k, count]) => count >= 3)
+          .map(([k, count]) => ({ severity: 'High', alert: `Crime Spike: ${count} recent incidents of ${k.split(' - ')[1]} detected in ${k.split(' - ')[0]}` }));
+
+        if (alerts.length > 0) {
+          results['Alerts'] = alerts;
+        } else {
+          results._note = (results._note || '') + ' No significant crime spikes detected currently.';
+        }
+        delete results['PredictiveAlerts'];
+      }
     } catch(e) {
       console.error('Failed to map lookups:', e);
     }
