@@ -936,15 +936,14 @@ export default function App() {
                   </div>
                 </div>
               )}
-              {selectedResult.data?.Accused?.length > 0 && selectedResult.data?.inv_arrestsurrenderaccused?.length > 0 && (
+              {selectedResult.data?.Accused?.length > 0 && (
                 (() => {
                   const caseToAccused = {};
-                  selectedResult.data.inv_arrestsurrenderaccused.forEach(inv => {
-                    const arrestRecord = (selectedResult.data.ArrestSurrender || []).find(a => String(a.ROWID) === String(inv.ArrestSurrenderID));
-                    if (arrestRecord) {
-                       const caseId = arrestRecord.CaseMasterID;
+                  selectedResult.data.Accused.forEach(accused => {
+                    const caseId = accused.CaseMasterID;
+                    if (caseId) {
                        if (!caseToAccused[caseId]) caseToAccused[caseId] = [];
-                       if (!caseToAccused[caseId].includes(inv.AccusedID)) caseToAccused[caseId].push(inv.AccusedID);
+                       if (!caseToAccused[caseId].includes(accused.ROWID)) caseToAccused[caseId].push(accused.ROWID);
                     }
                   });
                   const links = [];
@@ -955,7 +954,7 @@ export default function App() {
                        }
                      }
                   });
-                  if (links.length === 0) return null;
+                  // if (links.length === 0) return null; // Removed so graph renders even with just unconnected nodes
                   return (
                     <div>
                       <div className="flex items-center gap-2 mb-3">
