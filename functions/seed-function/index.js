@@ -12,10 +12,52 @@ module.exports = async (context, basicIO) => {
   }
   const batch = parseInt(batchStr, 10);
 
+
+
   if (batch === 99) {
     try {
-      const tables = await datastore.getAllTables();
-      basicIO.write(JSON.stringify({ tables: tables.map(t => t.tableName) }));
+      const zcql = app.zcql();
+      const cases = await zcql.executeZCQLQuery('SELECT ROWID, PoliceStationID FROM CaseMaster LIMIT 200');
+      const units = await zcql.executeZCQLQuery('SELECT ROWID, DistrictID FROM Unit LIMIT 100');
+      const districts = await zcql.executeZCQLQuery('SELECT ROWID, DistrictName FROM District LIMIT 100');
+
+      const districtCoords = {
+        'Bengaluru Urban': { lat: 12.9716, lng: 77.5946 },
+        'Bengaluru Rural': { lat: 13.2000, lng: 77.5000 },
+        'Mysuru': { lat: 12.2958, lng: 76.6394 },
+        'Mangaluru': { lat: 12.9141, lng: 74.8560 },
+        'Hubballi-Dharwad': { lat: 15.3647, lng: 75.1240 },
+        'Belagavi': { lat: 15.8497, lng: 74.4977 },
+        'Kalaburagi': { lat: 17.3297, lng: 76.8343 },
+        'Davanagere': { lat: 14.4644, lng: 75.9218 },
+        'Ballari': { lat: 15.1394, lng: 76.9214 },
+        'Shivamogga': { lat: 13.9299, lng: 75.5681 }
+      };
+
+      let updated = 0;
+      const table = datastore.table('CaseMaster');
+
+      for (const c of cases) {
+        const uId = c.CaseMaster.PoliceStationID;
+        const unit = units.find(u => u.Unit.ROWID == uId);
+        if (unit) {
+          const dId = unit.Unit.DistrictID;
+          const dist = districts.find(d => d.District.ROWID == dId);
+          if (dist) {
+            const baseCoord = districtCoords[dist.District.DistrictName] || { lat: 15.3173, lng: 75.7139 };
+            const lat = baseCoord.lat + (Math.random() * 0.6 - 0.3);
+            const lng = baseCoord.lng + (Math.random() * 0.6 - 0.3);
+            
+            await table.updateRow({
+              ROWID: c.CaseMaster.ROWID,
+              latitude: lat,
+              longitude: lng
+            });
+            updated++;
+          }
+        }
+      }
+      basicIO.write(JSON.stringify({ success: true, message: `Successfully updated ${updated} existing cases with correct coordinates.` }));
     } catch (e) {
       basicIO.write(JSON.stringify({ error: e.message }));
     }
@@ -138,6 +180,19 @@ module.exports = async (context, basicIO) => {
         loadLookup('CrimeSubHead')
       ]);
 
+      const districtCoords = {
+        'Bengaluru Urban': { lat: 12.9716, lng: 77.5946 },
+        'Bengaluru Rural': { lat: 13.2000, lng: 77.5000 },
+        'Mysuru': { lat: 12.2958, lng: 76.6394 },
+        'Mangaluru': { lat: 12.9141, lng: 74.8560 },
+        'Hubballi-Dharwad': { lat: 15.3647, lng: 75.1240 },
+        'Belagavi': { lat: 15.8497, lng: 74.4977 },
+        'Kalaburagi': { lat: 17.3297, lng: 76.8343 },
+        'Davanagere': { lat: 14.4644, lng: 75.9218 },
+        'Ballari': { lat: 15.1394, lng: 76.9214 },
+        'Shivamogga': { lat: 13.9299, lng: 75.5681 }
+      };
+
       if (districts.length === 0) {
          basicIO.write(JSON.stringify({ error: "Lookups missing. Run batch=0 first." }));
          return context.close();
@@ -168,8 +223,9 @@ module.exports = async (context, basicIO) => {
           const stat = getRnd(statuses);
           const grav = getRnd(gravity);
 
-          const lat = 11.5 + (Math.random() * 7);
-          const lng = 74.0 + (Math.random() * 4.5);
+          const baseCoord = districtCoords[dist.DistrictName] || { lat: 15.3173, lng: 75.7139 };
+          const lat = baseCoord.lat + (Math.random() * 0.6 - 0.3);
+          const lng = baseCoord.lng + (Math.random() * 0.6 - 0.3);
           
           const cRow = await safeInsert('CaseMaster', {
             CrimeNo: crimeNo,

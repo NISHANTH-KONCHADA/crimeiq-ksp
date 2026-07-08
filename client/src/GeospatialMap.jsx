@@ -1,11 +1,30 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
+import { Maximize, Minimize } from 'lucide-react';
 
 export default function GeospatialMap() {
   const [mapData, setMapData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const mapContainerRef = useRef(null);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      mapContainerRef.current?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   useEffect(() => {
     const fetchMapData = async () => {
@@ -40,8 +59,15 @@ export default function GeospatialMap() {
   });
 
   return (
-    <div className="h-full w-full rounded-xl overflow-hidden border border-slate-200 shadow-sm relative z-0">
-      <MapContainer center={[12.9716, 77.5946]} zoom={7} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
+    <div ref={mapContainerRef} className="h-full w-full rounded-xl overflow-hidden border border-slate-200 shadow-sm relative z-0 bg-white">
+      <button 
+        onClick={toggleFullscreen} 
+        className="absolute top-4 right-4 z-[1000] bg-white p-2 rounded shadow-md hover:bg-slate-50 border border-slate-200"
+        title="Toggle Fullscreen"
+      >
+        {isFullscreen ? <Minimize size={20} className="text-slate-700"/> : <Maximize size={20} className="text-slate-700"/>}
+      </button>
+      <MapContainer center={[14.5, 76.0]} zoom={6} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
