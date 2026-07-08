@@ -447,11 +447,17 @@ DATA: ${rawData}
         }
 
         if (resolveFromLinks) {
-            finalQuery = `SELECT * FROM Accused ${resolvedFirId ? `WHERE CaseMasterID = ${resolvedFirId}` : ''} LIMIT 10`;
+            finalQuery = `SELECT * FROM Accused ${resolvedFirId ? `WHERE CaseMasterID = ${resolvedFirId}` : ''} LIMIT 50`;
         }
 
         if (linkToFir && resolvedFirId) {
-          finalQuery = finalQuery.replace('LIMIT 10', '').trim() + ` WHERE CaseMasterID = ${resolvedFirId} LIMIT 10`;
+          finalQuery = finalQuery.replace(/LIMIT \d+/, '').trim() + ` WHERE CaseMasterID = ${resolvedFirId} LIMIT 50`;
+        }
+
+        // 🚨 NEW LOGIC: If we already fetched CaseMaster rows, force Accused/Victim to ONLY pull for those cases
+        if ((type === 'Accused' || type === 'Victim' || type === 'ArrestSurrender') && results.CaseMaster && results.CaseMaster.length > 0) {
+           const caseIds = results.CaseMaster.map(c => c.ROWID).join(',');
+           finalQuery = `SELECT * FROM ${type} WHERE CaseMasterID IN (${caseIds}) LIMIT 100`;
         }
 
         const rows = await zcql.executeZCQLQuery(finalQuery);
