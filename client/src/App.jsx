@@ -551,9 +551,9 @@ export default function App() {
         inputLang={inputLang}
         onToggleLang={() => setInputLang(prev => prev === 'EN' ? 'KN' : 'EN')}
       />
-      <PanelGroup direction="horizontal">
+      <PanelGroup direction="horizontal" className="w-full h-full">
         {/* EXTREME LEFT: Officer Timeline */}
-        <Panel defaultSize={20} minSize={15} maxSize={30} className="!hidden lg:!flex bg-slate-900 text-white flex-col shadow-xl z-20 shrink-0">
+        <Panel defaultSize={20} minSize={15} maxSize={30} className="!hidden lg:!flex bg-slate-900 text-white flex-col shadow-xl z-20">
         <div className="p-5 border-b border-slate-800 flex flex-col gap-2 text-center group relative">
           <Shield size={24} className="text-amber-500 mx-auto mb-1" />
           <input 
