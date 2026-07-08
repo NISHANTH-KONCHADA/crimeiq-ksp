@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Send, Mic, MicOff, Shield, FileText, Users, MapPin, Loader2, Download, LogOut, Volume2 } from 'lucide-react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
@@ -9,6 +9,7 @@ import 'leaflet/dist/leaflet.css';
 import Login from './Login';
 import VoiceOverlay from './VoiceOverlay';
 import GeospatialMap from './GeospatialMap';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
 import './App.css';
 
 // const CHAT_FUNCTION_URL = '/api/chat';
@@ -550,8 +551,9 @@ export default function App() {
         inputLang={inputLang}
         onToggleLang={() => setInputLang(prev => prev === 'EN' ? 'KN' : 'EN')}
       />
-      {/* EXTREME LEFT: Officer Timeline */}
-      <div className="hidden lg:flex w-64 bg-slate-900 text-white flex-col border-r border-slate-800 shadow-xl z-20 shrink-0">
+      <PanelGroup direction="horizontal">
+        {/* EXTREME LEFT: Officer Timeline */}
+        <Panel defaultSize={20} minSize={15} maxSize={30} className="!hidden lg:!flex bg-slate-900 text-white flex-col shadow-xl z-20 shrink-0">
         <div className="p-5 border-b border-slate-800 flex flex-col gap-2 text-center group relative">
           <Shield size={24} className="text-amber-500 mx-auto mb-1" />
           <input 
@@ -600,10 +602,11 @@ export default function App() {
             Sign Out
           </button>
         </div>
-      </div>
+        </Panel>
+        <PanelResizeHandle className="w-1 bg-slate-200 hover:bg-blue-500 cursor-col-resize transition-colors !hidden lg:!block z-30" />
 
-      {/* LEFT: Chat Panel */}
-      <div className="flex flex-col w-full md:w-[55%] border-r border-slate-200">
+        {/* LEFT: Chat Panel */}
+        <Panel defaultSize={45} minSize={30} className="flex flex-col w-full h-full bg-white z-10">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white z-10 shadow-sm relative">
           <div className="flex items-center gap-3">
@@ -799,10 +802,11 @@ export default function App() {
             </button>
           </div>
         </div>
-      </div>
+        </Panel>
+        <PanelResizeHandle className="w-1 bg-slate-200 hover:bg-blue-500 cursor-col-resize transition-colors !hidden md:!block z-30" />
 
-      {/* RIGHT: Results Panel */}
-      <div className="hidden md:flex flex-col w-[45%] bg-white">
+        {/* RIGHT: Results Panel */}
+        <Panel defaultSize={35} minSize={20} className="!hidden md:!flex flex-col bg-slate-50 h-full relative overflow-hidden">
         <div className="flex items-center gap-6 px-6 py-4 border-b border-slate-200 shrink-0">
           <button
             onClick={() => setActiveTab('Data')}
@@ -1052,7 +1056,8 @@ export default function App() {
             </div>
           )}
         </div>
-      </div>
+      </Panel>
+    </PanelGroup>
 
       {/* Narrative Report Modal */}
       {reportModalData && (
